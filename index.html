@@ -203,7 +203,7 @@
         itemDiv.className = 'result-item';
 
         const img = document.createElement('img');
-        img.src = result.path;
+        img.src = `/file/${encodeURIComponent(result.path)}`;
         img.alt = result.path;
         itemDiv.appendChild(img);
 

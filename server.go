@@ -26,6 +26,10 @@ func homeHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Write(index)
 }
 
+func fileProxy(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, filepath.Clean(r.PathValue("path")))
+}
+
 // walkHandler is the HTTP API endpoint that receives query parameters,
 // starts the walkDir process, and streams results back using Flush.
 func walkHandler(w http.ResponseWriter, r *http.Request) {
