@@ -2,49 +2,217 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Color Finder</title>
+    <title>Color Finder - Thumbnail Viewer</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 2em; }
-        #results { margin-top: 1em; white-space: pre-wrap; background: #f7f7f7; padding: 1em; border: 1px solid #ccc; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+            background: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+        }
+        form {
+            margin-bottom: 2em;
+            padding: 1em;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 1em;
+        }
+        input[type="text"],
+        input[type="color"],
+        input[type="number"] {
+            padding: 0.5em;
+            margin-left: 0.5em;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        button {
+            padding: 0.7em 1.2em;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #controls {
+            margin-bottom: 1em;
+        }
+        #results {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1em;
+        }
+        .result-item {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 0.5em;
+            border-radius: 5px;
+            width: 200px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .result-item img {
+            max-width: 100%;
+            max-height: 150px;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 0.5em;
+        }
+        .result-item .info {
+            font-size: 0.9em;
+            color: #333;
+            word-wrap: break-word;
+        }
     </style>
 </head>
 <body>
-<h1>Color Finder</h1>
-<p>Select a folder on the server (enter its path) and a target color.</p>
-<form id="colorForm" onsubmit="startWalk(event)">
-    <label>Folder Path: <input type="text" id="folder" placeholder="e.g. /path/to/images" required></label><br><br>
-    <label>Target Color: <input type="color" id="color" value="#ff0000" required></label><br><br>
-    <label>Threshold: <input type="number" id="threshold" step="0.01" value="0.1"></label><br><br>
+<h1>Color Finder - Thumbnail Viewer</h1>
+<form id="colorForm">
+    <label>
+        Folder Path:
+        <input type="text" id="folder" placeholder="/path/to/images" required>
+    </label>
+    <label>
+        Target Color:
+        <input type="color" id="color" value="#ff0000" required>
+    </label>
+    <label>
+        Threshold (Max Distance):
+        <input type="number" id="threshold" step="0.01" value="0.5">
+    </label>
     <button type="submit">Start</button>
 </form>
+
+<div id="controls">
+    <label>
+        Filter Max Distance:
+        <input type="number" id="filterDistance" step="0.01" value="0.5">
+    </label>
+</div>
+
 <div id="results"></div>
 
 <script>
-    function startWalk(e) {
+    /**
+     * @typedef {Object} Result
+     * @property {string} path
+     * @property {boolean} found
+     * @property {number} distance
+     */
+
+    const resultsDiv = document.getElementById('results');
+    const filterInput = document.getElementById('filterDistance');
+
+    /** @type {Result[]} */
+    const allResults = [];
+
+    document.getElementById('colorForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        const folder = document.getElementById("folder").value;
-        const color = document.getElementById("color").value;
-        const threshold = document.getElementById("threshold").value;
-        const resultsDiv = document.getElementById("results");
-        resultsDiv.textContent = "Processing...\n";
+        const folder = document.getElementById('folder').value;
+        const color = document.getElementById('color').value;
+        const threshold = document.getElementById('threshold').value;
+        allResults.length = 0;
+        resultsDiv.innerHTML = '';
 
         fetch(`/walk?folder=${encodeURIComponent(folder)}&color=${encodeURIComponent(color)}&threshold=${encodeURIComponent(threshold)}`)
             .then(response => {
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
+                let buffer = '';
                 function read() {
                     return reader.read().then(({ done, value }) => {
-                        if (done) return;
-                        const chunk = decoder.decode(value);
-                        resultsDiv.textContent += chunk;
+                        if (done) {
+                            if (buffer.length > 0) processBuffer(buffer);
+                            return;
+                        }
+                        buffer += decoder.decode(value, { stream: true });
+                        let lines = buffer.split("\n");
+                        buffer = lines.pop(); // keep incomplete line
+                        lines.forEach(processLine);
                         return read();
                     });
                 }
                 return read();
             })
             .catch(err => {
-                resultsDiv.textContent += "\nError: " + err;
+                const errorDiv = document.createElement('div');
+                errorDiv.textContent = "Error: " + err;
+                resultsDiv.appendChild(errorDiv);
             });
+    });
+
+    filterInput.addEventListener('input', () => {
+        renderFilteredResults(parseFloat(filterInput.value));
+    });
+
+    function processBuffer(buffer) {
+        const lines = buffer.split("\n");
+        lines.forEach(processLine);
+    }
+
+    /**
+     * Processes a single line of streamed JSON.
+     * @param {string} line
+     */
+    function processLine(line) {
+        if (!line.trim()) return;
+        try {
+            /** @type {Result} */
+            const result = JSON.parse(line);
+            allResults.push(result);
+            const currentMax = parseFloat(filterInput.value);
+            if (result.found && result.distance <= currentMax) {
+                const itemDiv = createResultItem(result);
+                resultsDiv.appendChild(itemDiv);
+            }
+        } catch (e) {
+            console.error("Failed to parse line:", line, e);
+        }
+    }
+
+    /**
+     * Renders only those results under the current filter.
+     * @param {number} maxDistance
+     */
+    function renderFilteredResults(maxDistance) {
+        resultsDiv.innerHTML = '';
+        allResults.forEach(result => {
+            if (result.found && result.distance <= maxDistance) {
+                const itemDiv = createResultItem(result);
+                resultsDiv.appendChild(itemDiv);
+            }
+        });
+    }
+
+    /**
+     * Creates a visual card for the result.
+     * @param {Result} result
+     * @returns {HTMLDivElement}
+     */
+    function createResultItem(result) {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'result-item';
+
+        const img = document.createElement('img');
+        img.src = result.path;
+        img.alt = result.path;
+        itemDiv.appendChild(img);
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'info';
+        infoDiv.textContent = `Distance: ${result.distance.toFixed(2)}`;
+        itemDiv.appendChild(infoDiv);
+
+        return itemDiv;
     }
 </script>
 </body>

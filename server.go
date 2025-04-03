@@ -2,7 +2,8 @@ package main
 
 import (
 	_ "embed"
-	"fmt"
+	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -60,7 +61,7 @@ func walkHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
-	results := make(chan string)
+	results := make(chan Result)
 	// start walking the directory in a separate goroutine
 	go func() {
 		walkDir(folder, target, threshold, results)
@@ -68,24 +69,34 @@ func walkHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	// stream results as they come in
+	enc := json.NewEncoder(w)
 	for msg := range results {
-		fmt.Fprintln(w, msg)
+		if err := enc.Encode(msg); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		flusher.Flush()
 	}
+}
+
+type Result struct {
+	Path     string  `json:"path,omitempty"`
+	Found    bool    `json:"found,omitempty"`
+	Distance float64 `json:"distance,omitempty"`
 }
 
 // walkDir traverses the folder rooted at "root" and, for each image file,
 // spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
 // that runs hasColor. The results (a string message per file) are sent
 // into the results channel.
-func walkDir(root string, target colorful.Color, threshold float64, results chan<- string) {
+func walkDir(root string, target colorful.Color, threshold float64, results chan<- Result) {
 	// convert colorful target to standard color.Color (RGBA)
 	sem := make(chan struct{}, runtime.NumCPU())
 	var wg sync.WaitGroup
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			results <- fmt.Sprintf("error accessing %s: %v", path, err)
+			log.Printf("error accessing %s: %v", path, err)
 			return nil
 		}
 		if info.IsDir() {
@@ -103,16 +114,19 @@ func walkDir(root string, target colorful.Color, threshold float64, results chan
 			defer wg.Done()
 			defer func() { <-sem }() // release semaphore
 			distance, found := hasColor(path, target, threshold)
-			if found {
-				results <- fmt.Sprintf("%s: found target color (distance: %.2f)", path, distance)
-			} else {
-				results <- fmt.Sprintf("%s: target color not found", path)
+			if !found {
+				return
+			}
+			results <- Result{
+				Path:     path,
+				Found:    found,
+				Distance: distance,
 			}
 		}(path)
 		return nil
 	})
 	if err != nil {
-		results <- fmt.Sprintf("error walking directory: %v", err)
+		log.Printf("error walking the path %v: %v", root, err)
 	}
 	wg.Wait()
 }
