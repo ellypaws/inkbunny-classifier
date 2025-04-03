@@ -135,9 +135,12 @@ func walkDir(ctx context.Context, root string, target colorful.Color, threshold 
 			defer func() { <-sem; wg.Done() }()
 			distance, found := hasColor(path, target, threshold)
 			if !found {
+				log.Printf("%s not found, lowest: %.3f", path, distance)
 				return
 			}
-			results <- Result{Path: path, Found: found, Distance: distance}
+			result := Result{Path: path, Found: found, Distance: distance}
+			log.Printf("Found %#v", result)
+			results <- result
 		}(path)
 		return nil
 	})
