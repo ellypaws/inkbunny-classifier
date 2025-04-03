@@ -110,6 +110,17 @@
         Max Files:
         <input type="number" id="maxFiles" min="1" value="500">
     </label>
+    <label>
+        Distance Function:
+        <select id="metric">
+            <option value="DistanceRgb">DistanceRgb</option>
+            <option value="DistanceLab" selected>DistanceLab</option>
+            <option value="DistanceLuv">DistanceLuv</option>
+            <option value="DistanceCIE76">DistanceCIE76</option>
+            <option value="DistanceCIE94">DistanceCIE94</option>
+            <option value="DistanceCIEDE2000">DistanceCIEDE2000</option>
+        </select>
+    </label>
     <button type="submit">Start</button>
     <button type="button" id="cancelBtn" disabled>Cancel</button>
 </form>
@@ -145,12 +156,14 @@
         const folder = document.getElementById('folder').value;
         const color = document.getElementById('color').value;
         const threshold = document.getElementById('threshold').value;
+        const maxFiles = document.getElementById('maxFiles').value;
+        const metric = document.getElementById('metric').value;
         allResults.length = 0;
         resultsDiv.innerHTML = '';
         controller = new AbortController();
         cancelButton.disabled = false;
 
-        const path = `/walk?folder=${encodeURIComponent(folder)}&color=${encodeURIComponent(color)}&threshold=${encodeURIComponent(threshold)}&max=${encodeURIComponent(maxFiles)}`
+        const path = `/walk?folder=${encodeURIComponent(folder)}&color=${encodeURIComponent(color)}&threshold=${encodeURIComponent(threshold)}&max=${encodeURIComponent(maxFiles)}&metric=${encodeURIComponent(metric)}`
         fetch(path, {signal: controller.signal})
             .then(response => {
                 const reader = response.body.getReader();

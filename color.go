@@ -14,7 +14,7 @@ import (
 
 // hasColor inspects the image at filename and returns the Lab distance
 // to target along with a boolean indicating if a pixel is found within maxDistance.
-func hasColor(name string, target colorful.Color, maxDistance float64) (float64, bool) {
+func hasColor(name string, target colorful.Color, maxDistance float64, distanceFunc func(colorful.Color, colorful.Color) float64) (float64, bool) {
 	file, err := os.Open(name)
 	if err != nil {
 		log.Printf("error opening %s: %v", name, err)
@@ -29,7 +29,7 @@ func hasColor(name string, target colorful.Color, maxDistance float64) (float64,
 
 	lowest := -1.0
 	for pixel := range pixels(img) {
-		distance := DefaultCache.CacheDistance(colorful.Color.DistanceCIEDE2000, pixel, target)
+		distance := DefaultCache.CacheDistance(distanceFunc, pixel, target)
 		if distance <= maxDistance {
 			if lowest < 0 {
 				lowest = distance

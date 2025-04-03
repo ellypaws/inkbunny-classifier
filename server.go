@@ -39,6 +39,7 @@ func walkHandler(w http.ResponseWriter, r *http.Request) {
 	colorHex := r.URL.Query().Get("color")
 	thresholdStr := r.URL.Query().Get("threshold")
 	maxStr := r.URL.Query().Get("max")
+	metricStr := r.URL.Query().Get("metric")
 
 	if folder == "" || colorHex == "" {
 		http.Error(w, "folder and color parameters are required", http.StatusBadRequest)
@@ -74,11 +75,29 @@ func walkHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 
+	metric := colorful.Color.DistanceLab
+	switch metricStr {
+	case "DistanceRgb":
+		metric = colorful.Color.DistanceRgb
+	case "DistanceLab":
+		metric = colorful.Color.DistanceLab
+	case "DistanceLuv":
+		metric = colorful.Color.DistanceLuv
+	case "DistanceCIE76":
+		metric = colorful.Color.DistanceCIE76
+	case "DistanceCIE94":
+		metric = colorful.Color.DistanceCIE94
+	case "DistanceCIEDE2000":
+		metric = colorful.Color.DistanceCIEDE2000
+	default:
+		metric = colorful.Color.DistanceLab
+	}
+
 	ctx := r.Context()
 	results := make(chan Result)
 
 	go func() {
-		walkDir(ctx, folder, target, threshold, maxFiles, results)
+		walkDir(ctx, folder, target, threshold, maxFiles, metric, results)
 		close(results)
 	}()
 
@@ -104,13 +123,17 @@ type Result struct {
 // spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
 // that runs hasColor. The results (a string message per file) are sent
 // into the results channel.
-func walkDir(ctx context.Context, root string, target colorful.Color, threshold float64, max int, results chan<- Result) {
+func walkDir(ctx context.Context, root string, target colorful.Color, threshold float64, max int, distanceFunc func(colorful.Color, colorful.Color) float64, results chan<- Result) {
 	// convert colorful target to standard color.Color (RGBA)
 	sem := make(chan struct{}, runtime.NumCPU())
 	var (
 		count int
 		wg    sync.WaitGroup
 	)
+
+	if distanceFunc == nil {
+		distanceFunc = colorful.Color.DistanceLab
+	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -133,7 +156,7 @@ func walkDir(ctx context.Context, root string, target colorful.Color, threshold 
 		sem <- struct{}{}
 		go func(path string) {
 			defer func() { <-sem; wg.Done() }()
-			distance, found := hasColor(path, target, threshold)
+			distance, found := hasColor(path, target, threshold, distanceFunc)
 			if !found {
 				log.Printf("%s not found, lowest: %.3f", path, distance)
 				return
