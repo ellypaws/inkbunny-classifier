@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"log"
@@ -37,6 +38,7 @@ func walkHandler(w http.ResponseWriter, r *http.Request) {
 	folder := r.URL.Query().Get("folder")
 	colorHex := r.URL.Query().Get("color")
 	thresholdStr := r.URL.Query().Get("threshold")
+	maxStr := r.URL.Query().Get("max")
 
 	if folder == "" || colorHex == "" {
 		http.Error(w, "folder and color parameters are required", http.StatusBadRequest)
@@ -47,6 +49,13 @@ func walkHandler(w http.ResponseWriter, r *http.Request) {
 	if thresholdStr != "" {
 		if t, err := strconv.ParseFloat(thresholdStr, 64); err == nil {
 			threshold = t
+		}
+	}
+
+	maxFiles := -1
+	if maxStr != "" {
+		if m, err := strconv.Atoi(maxStr); err == nil && m > 0 {
+			maxFiles = m
 		}
 	}
 
@@ -63,23 +72,25 @@ func walkHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "application/json")
 
+	ctx := r.Context()
 	results := make(chan Result)
-	// start walking the directory in a separate goroutine
+
 	go func() {
-		walkDir(folder, target, threshold, results)
+		walkDir(ctx, folder, target, threshold, maxFiles, results)
 		close(results)
 	}()
 
-	// stream results as they come in
 	enc := json.NewEncoder(w)
-	for msg := range results {
-		if err := enc.Encode(msg); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+	for res := range results {
+		select {
+		case <-ctx.Done():
+			return // interrupt detected
+		default:
+			_ = enc.Encode(res)
+			flusher.Flush()
 		}
-		flusher.Flush()
 	}
 }
 
@@ -93,39 +104,40 @@ type Result struct {
 // spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
 // that runs hasColor. The results (a string message per file) are sent
 // into the results channel.
-func walkDir(root string, target colorful.Color, threshold float64, results chan<- Result) {
+func walkDir(ctx context.Context, root string, target colorful.Color, threshold float64, max int, results chan<- Result) {
 	// convert colorful target to standard color.Color (RGBA)
 	sem := make(chan struct{}, runtime.NumCPU())
-	var wg sync.WaitGroup
+	var (
+		count int
+		wg    sync.WaitGroup
+	)
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Printf("error accessing %s: %v", path, err)
+		if err != nil || info.IsDir() {
 			return nil
 		}
-		if info.IsDir() {
+		if !strings.HasSuffix(strings.ToLower(path), ".png") && !strings.HasSuffix(path, ".jpg") {
 			return nil
 		}
-		// only process common image file types (you can extend as needed)
-		ext := strings.ToLower(filepath.Ext(path))
-		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
-			return nil
+		if max > 0 && count >= max {
+			return filepath.SkipDir
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 		}
 
+		count++
 		wg.Add(1)
-		sem <- struct{}{} // acquire semaphore
+		sem <- struct{}{}
 		go func(path string) {
-			defer wg.Done()
-			defer func() { <-sem }() // release semaphore
+			defer func() { <-sem; wg.Done() }()
 			distance, found := hasColor(path, target, threshold)
 			if !found {
 				return
 			}
-			results <- Result{
-				Path:     path,
-				Found:    found,
-				Distance: distance,
-			}
+			results <- Result{Path: path, Found: found, Distance: distance}
 		}(path)
 		return nil
 	})

@@ -9,21 +9,25 @@
             margin: 2em;
             background: #f0f0f0;
         }
+
         h1 {
             color: #333;
         }
+
         form {
             margin-bottom: 2em;
             padding: 1em;
             background: #fff;
             border: 1px solid #ccc;
             border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
+
         label {
             display: block;
             margin-bottom: 1em;
         }
+
         input[type="text"],
         input[type="color"],
         input[type="number"] {
@@ -32,6 +36,7 @@
             border: 1px solid #ccc;
             border-radius: 3px;
         }
+
         button {
             padding: 0.7em 1.2em;
             background: #007bff;
@@ -41,32 +46,44 @@
             cursor: pointer;
             font-size: 1em;
         }
+
         button:hover {
             background: #0056b3;
         }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            pointer-events: all !important;
+        }
+
         #controls {
             margin-bottom: 1em;
         }
+
         #results {
             display: flex;
             flex-wrap: wrap;
             gap: 1em;
         }
+
         .result-item {
             background: #fff;
             border: 1px solid #ccc;
             padding: 0.5em;
             border-radius: 5px;
             width: 200px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
+
         .result-item img {
             max-width: 100%;
             max-height: 150px;
             border-bottom: 1px solid #ccc;
             margin-bottom: 0.5em;
         }
+
         .result-item .info {
             font-size: 0.9em;
             color: #333;
@@ -89,7 +106,12 @@
         Threshold (Max Distance):
         <input type="number" id="threshold" step="0.01" value="0.5">
     </label>
+    <label>
+        Max Files:
+        <input type="number" id="maxFiles" min="1" value="500">
+    </label>
     <button type="submit">Start</button>
+    <button type="button" id="cancelBtn" disabled>Cancel</button>
 </form>
 
 <div id="controls">
@@ -111,43 +133,59 @@
 
     const resultsDiv = document.getElementById('results');
     const filterInput = document.getElementById('filterDistance');
+    const cancelButton = document.getElementById('cancelBtn');
 
     /** @type {Result[]} */
     const allResults = [];
 
-    document.getElementById('colorForm').addEventListener('submit', function(e) {
+    let controller = null;
+
+    document.getElementById('colorForm').addEventListener('submit', function (e) {
         e.preventDefault();
         const folder = document.getElementById('folder').value;
         const color = document.getElementById('color').value;
         const threshold = document.getElementById('threshold').value;
         allResults.length = 0;
         resultsDiv.innerHTML = '';
+        controller = new AbortController();
+        cancelButton.disabled = false;
 
-        fetch(`/walk?folder=${encodeURIComponent(folder)}&color=${encodeURIComponent(color)}&threshold=${encodeURIComponent(threshold)}`)
+        const path = `/walk?folder=${encodeURIComponent(folder)}&color=${encodeURIComponent(color)}&threshold=${encodeURIComponent(threshold)}&max=${encodeURIComponent(maxFiles)}`
+        fetch(path, {signal: controller.signal})
             .then(response => {
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
+
                 function read() {
-                    return reader.read().then(({ done, value }) => {
+                    return reader.read().then(({done, value}) => {
                         if (done) {
                             if (buffer.length > 0) processBuffer(buffer);
                             return;
                         }
-                        buffer += decoder.decode(value, { stream: true });
+                        buffer += decoder.decode(value, {stream: true});
                         let lines = buffer.split("\n");
                         buffer = lines.pop(); // keep incomplete line
                         lines.forEach(processLine);
                         return read();
                     });
                 }
+
                 return read();
             })
             .catch(err => {
                 const errorDiv = document.createElement('div');
                 errorDiv.textContent = "Error: " + err;
                 resultsDiv.appendChild(errorDiv);
+            })
+            .finally(() => {
+                cancelButton.disabled = true;
             });
+    });
+
+    cancelButton.addEventListener('click', () => {
+        if (controller) controller.abort();
+        cancelButton.disabled = true;
     });
 
     filterInput.addEventListener('input', () => {
