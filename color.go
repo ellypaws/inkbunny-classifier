@@ -7,6 +7,7 @@ import (
 	"iter"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/lucasb-eyer/go-colorful"
 )
@@ -26,13 +27,45 @@ func hasColor(name string, target colorful.Color, maxDistance float64) (float64,
 		return -1, false
 	}
 
+	lowest := -1.0
 	for pixel := range pixels(img) {
-		distance := pixel.DistanceLab(target)
+		distance := DefaultCache.CacheDistance(colorful.Color.DistanceCIEDE2000, pixel, target)
 		if distance <= maxDistance {
-			return distance, true
+			if lowest < 0 {
+				lowest = distance
+			} else {
+				lowest = min(lowest, distance)
+			}
 		}
 	}
-	return -1, false
+	return lowest, lowest <= maxDistance
+}
+
+var DefaultCache = &cache{
+	RWMutex: new(sync.RWMutex),
+	cache:   make(map[string]float64),
+}
+
+type cache struct {
+	*sync.RWMutex
+	cache map[string]float64
+}
+
+func (c *cache) CacheDistance(distance func(colorful.Color, colorful.Color) float64, from, target colorful.Color) float64 {
+	hex := from.Hex()
+	c.RLock()
+	if v, ok := c.cache[hex]; ok {
+		c.RUnlock()
+		return v
+	}
+	c.RUnlock()
+
+	c.Lock()
+	d := distance(from, target)
+	c.cache[hex] = d
+	c.Unlock()
+
+	return d
 }
 
 // pixels is an iterator over all the pixels in an image.
