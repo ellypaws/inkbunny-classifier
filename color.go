@@ -38,7 +38,7 @@ func hasColor(name string, target colorful.Color, maxDistance float64, distanceF
 			}
 		}
 	}
-	return lowest, lowest <= maxDistance
+	return lowest, lowest >= 0
 }
 
 var DefaultCache = &cache{
