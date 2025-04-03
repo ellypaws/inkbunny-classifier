@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Color Finder</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        #results { margin-top: 1em; white-space: pre-wrap; background: #f7f7f7; padding: 1em; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+<h1>Color Finder</h1>
+<p>Select a folder on the server (enter its path) and a target color.</p>
+<form id="colorForm" onsubmit="startWalk(event)">
+    <label>Folder Path: <input type="text" id="folder" placeholder="e.g. /path/to/images" required></label><br><br>
+    <label>Target Color: <input type="color" id="color" value="#ff0000" required></label><br><br>
+    <label>Threshold: <input type="number" id="threshold" step="0.01" value="0.1"></label><br><br>
+    <button type="submit">Start</button>
+</form>
+<div id="results"></div>
+
+<script>
+    function startWalk(e) {
+        e.preventDefault();
+        const folder = document.getElementById("folder").value;
+        const color = document.getElementById("color").value;
+        const threshold = document.getElementById("threshold").value;
+        const resultsDiv = document.getElementById("results");
+        resultsDiv.textContent = "Processing...\n";
+
+        fetch(`/walk?folder=${encodeURIComponent(folder)}&color=${encodeURIComponent(color)}&threshold=${encodeURIComponent(threshold)}`)
+            .then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                function read() {
+                    return reader.read().then(({ done, value }) => {
+                        if (done) return;
+                        const chunk = decoder.decode(value);
+                        resultsDiv.textContent += chunk;
+                        return read();
+                    });
+                }
+                return read();
+            })
+            .catch(err => {
+                resultsDiv.textContent += "\nError: " + err;
+            });
+    }
+</script>
+</body>
+</html>
