@@ -61,7 +61,7 @@ func Predict(ctx context.Context, file io.ReadSeeker) (Prediction, error) {
 
 func PredictURL(ctx context.Context, path string) (Prediction, error) {
 	params := url.Values{
-		"url": {fmt.Sprintf("http://localhost:8080/file/%s", path)},
+		"url": {path},
 	}
 	requestURL := fmt.Sprintf("http://localhost:7860/predict?%s", params.Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, nil)
