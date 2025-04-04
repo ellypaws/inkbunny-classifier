@@ -28,11 +28,18 @@
             margin-bottom: 1em;
         }
 
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+
         input[type="text"],
         input[type="color"],
-        input[type="number"] {
+        input[type="number"],
+        input[type="range"],
+        select {
             padding: 0.5em;
-            margin-left: 0.5em;
             border: 1px solid #ccc;
             border-radius: 3px;
         }
@@ -59,6 +66,11 @@
 
         #controls {
             margin-bottom: 1em;
+            background: #fff;
+            padding: 1em;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
         #results {
@@ -89,6 +101,23 @@
             color: #333;
             word-wrap: break-word;
         }
+
+        .jeffy-bar {
+            background: #ddd;
+            border-radius: 3px;
+            overflow: hidden;
+            height: 20px;
+            margin-top: 0.5em;
+        }
+
+        .jeffy-bar-inner {
+            height: 100%;
+            text-align: center;
+            line-height: 20px;
+            background: #007bff;
+            color: white;
+            width: 0%;
+        }
     </style>
 </head>
 <body>
@@ -103,8 +132,11 @@
         <input type="color" id="color" value="#ff0000" required>
     </label>
     <label>
-        Threshold (Max Distance):
-        <input type="number" id="threshold" step="0.01" value="0.5">
+        Threshold (Max Distance) (%):
+        <div class="slider-container">
+            <input type="number" id="thresholdNumber" step="0.1" min="0" max="100" value="50">
+            <input type="range" id="thresholdRange" step="0.1" min="0" max="100" value="50">
+        </div>
     </label>
     <label>
         Max Files:
@@ -127,101 +159,126 @@
 
 <div id="controls">
     <label>
-        Filter Max Distance:
-        <input type="number" id="filterDistance" step="0.01" value="0.5">
+        Filter Max Distance (%):
+        <div class="slider-container">
+            <input type="number" id="filterDistanceNumber" step="0.1" min="0" max="100" value="50">
+            <input type="range" id="filterDistanceRange" step="0.1" min="0" max="100" value="50">
+        </div>
+    </label>
+    <label>
+        Filter Minimum Jeffy (%):
+        <div class="slider-container">
+            <input type="number" id="filterJeffyNumber" step="0.1" min="0" max="100" value="0">
+            <input type="range" id="filterJeffyRange" step="0.1" min="0" max="100" value="0">
+        </div>
     </label>
 </div>
 
 <div id="results"></div>
 
 <script>
-    /**
-     * @typedef {Object} Result
-     * @property {string} path
-     * @property {boolean} found
-     * @property {number} distance
-     */
-
-    const resultsDiv = document.getElementById('results');
-    const filterInput = document.getElementById('filterDistance');
-    const cancelButton = document.getElementById('cancelBtn');
-
-    /** @type {Result[]} */
+    // Global variables
+    /** @type {Array<Object>} */
     const allResults = [];
+    const resultsDiv = document.getElementById('results');
+    const cancelButton = document.getElementById('cancelBtn');
+    let source = null; // will hold the EventSource
 
-    let controller = null;
+    // Get references for slider pairs
+    const thresholdNumber = document.getElementById('thresholdNumber');
+    const thresholdRange = document.getElementById('thresholdRange');
+    const filterDistanceNumber = document.getElementById('filterDistanceNumber');
+    const filterDistanceRange = document.getElementById('filterDistanceRange');
+    const filterJeffyNumber = document.getElementById('filterJeffyNumber');
+    const filterJeffyRange = document.getElementById('filterJeffyRange');
 
-    document.getElementById('colorForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        const folder = document.getElementById('folder').value;
-        const color = document.getElementById('color').value;
-        const threshold = document.getElementById('threshold').value;
-        const maxFiles = document.getElementById('maxFiles').value;
-        const metric = document.getElementById('metric').value;
-        allResults.length = 0;
-        resultsDiv.innerHTML = '';
-        controller = new AbortController();
-        cancelButton.disabled = false;
-
-        const path = `/walk?folder=${encodeURIComponent(folder)}&color=${encodeURIComponent(color)}&threshold=${encodeURIComponent(threshold)}&max=${encodeURIComponent(maxFiles)}&metric=${encodeURIComponent(metric)}`
-        fetch(path, {signal: controller.signal})
-            .then(response => {
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                function read() {
-                    return reader.read().then(({done, value}) => {
-                        if (done) {
-                            if (buffer.length > 0) processBuffer(buffer);
-                            return;
-                        }
-                        buffer += decoder.decode(value, {stream: true});
-                        let lines = buffer.split("\n");
-                        buffer = lines.pop(); // keep incomplete line
-                        lines.forEach(processLine);
-                        return read();
-                    });
-                }
-
-                return read();
-            })
-            .catch(err => {
-                const errorDiv = document.createElement('div');
-                errorDiv.textContent = "Error: " + err;
-                resultsDiv.appendChild(errorDiv);
-            })
-            .finally(() => {
-                cancelButton.disabled = true;
-            });
-    });
-
-    cancelButton.addEventListener('click', () => {
-        if (controller) controller.abort();
-        cancelButton.disabled = true;
-    });
-
-    filterInput.addEventListener('input', () => {
-        renderFilteredResults(parseFloat(filterInput.value));
-    });
-
-    function processBuffer(buffer) {
-        const lines = buffer.split("\n");
-        lines.forEach(processLine);
+    // Utility function to load setting from localStorage
+    function loadSetting(id, defaultValue) {
+        const el = document.getElementById(id);
+        const stored = localStorage.getItem(id);
+        if (stored !== null) {
+            el.value = stored;
+        } else {
+            el.value = defaultValue;
+        }
     }
 
-    /**
-     * Processes a single line of streamed JSON.
-     * @param {string} line
-     */
+    // Load saved settings on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSetting('folder', '');
+        loadSetting('color', '#ff0000');
+        loadSetting('thresholdNumber', '50');
+        loadSetting('maxFiles', '500');
+        loadSetting('metric', 'DistanceLab');
+        loadSetting('filterDistanceNumber', '50');
+        loadSetting('filterJeffyNumber', '0');
+
+        // Sync ranges with numbers
+        thresholdRange.value = thresholdNumber.value;
+        filterDistanceRange.value = filterDistanceNumber.value;
+        filterJeffyRange.value = filterJeffyNumber.value;
+    });
+
+    // Save changes to localStorage for non-slider inputs
+    document.getElementById('folder').addEventListener('input', (e) => {
+        localStorage.setItem('folder', e.target.value);
+    });
+    document.getElementById('color').addEventListener('input', (e) => {
+        localStorage.setItem('color', e.target.value);
+    });
+    document.getElementById('maxFiles').addEventListener('input', (e) => {
+        localStorage.setItem('maxFiles', e.target.value);
+    });
+    document.getElementById('metric').addEventListener('change', (e) => {
+        localStorage.setItem('metric', e.target.value);
+    });
+
+    // Sync slider pairs and save settings
+    thresholdNumber.addEventListener('input', () => {
+        thresholdRange.value = thresholdNumber.value;
+        localStorage.setItem('thresholdNumber', thresholdNumber.value);
+    });
+    thresholdRange.addEventListener('input', () => {
+        thresholdNumber.value = thresholdRange.value;
+        localStorage.setItem('thresholdNumber', thresholdNumber.value);
+    });
+
+    filterDistanceNumber.addEventListener('input', () => {
+        filterDistanceRange.value = filterDistanceNumber.value;
+        localStorage.setItem('filterDistanceNumber', filterDistanceNumber.value);
+        renderFilteredResults();
+    });
+    filterDistanceRange.addEventListener('input', () => {
+        filterDistanceNumber.value = filterDistanceRange.value;
+        localStorage.setItem('filterDistanceNumber', filterDistanceNumber.value);
+        renderFilteredResults();
+    });
+
+    filterJeffyNumber.addEventListener('input', () => {
+        filterJeffyRange.value = filterJeffyNumber.value;
+        localStorage.setItem('filterJeffyNumber', filterJeffyNumber.value);
+        renderFilteredResults();
+    });
+    filterJeffyRange.addEventListener('input', () => {
+        filterJeffyNumber.value = filterJeffyRange.value;
+        localStorage.setItem('filterJeffyNumber', filterJeffyNumber.value);
+        renderFilteredResults();
+    });
+
+    // Function to process a single SSE message line (expects JSON string)
     function processLine(line) {
         if (!line.trim()) return;
         try {
-            /** @type {Result} */
+            // Parse the incoming JSON object.
             const result = JSON.parse(line);
             allResults.push(result);
-            const currentMax = parseFloat(filterInput.value);
-            if (result.found && result.distance <= currentMax) {
+
+            // Get current filter values (convert percentage inputs to decimals)
+            const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
+            const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
+
+            // Check filters: using result.color and result.prediction.jeffy
+            if (result.color.found && result.color.distance <= maxDistance && result.prediction.jeffy >= minJeffy) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -230,24 +287,21 @@
         }
     }
 
-    /**
-     * Renders only those results under the current filter.
-     * @param {number} maxDistance
-     */
-    function renderFilteredResults(maxDistance) {
+    // Renders all results that pass the current filters.
+    function renderFilteredResults() {
         resultsDiv.innerHTML = '';
+        const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
+        const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
         allResults.forEach(result => {
-            if (result.found && result.distance <= maxDistance) {
+            if (result.color.found && result.color.distance <= maxDistance && result.prediction.jeffy >= minJeffy) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
         });
     }
 
-    /**
-     * Creates a visual card for the result.
-     * @param {Result} result
-     * @returns {HTMLDivElement}
+    /*
+     
      */
     function createResultItem(result) {
         const itemDiv = document.createElement('div');
@@ -260,11 +314,78 @@
 
         const infoDiv = document.createElement('div');
         infoDiv.className = 'info';
-        infoDiv.textContent = `Distance: ${result.distance.toFixed(2)}`;
+        // Convert distance and jeffy values to percentages for display.
+        const distancePercent = (result.color.distance * 100).toFixed(2);
+        const jeffyPercent = (result.prediction.jeffy * 100).toFixed(2);
+        infoDiv.innerHTML = `Color Distance: ${distancePercent}%<br>Jeffy: ${jeffyPercent}%`;
         itemDiv.appendChild(infoDiv);
+
+        // Create a styled bar for jeffy percentage.
+        const barContainer = document.createElement('div');
+        barContainer.className = 'jeffy-bar';
+        const barInner = document.createElement('div');
+        barInner.className = 'jeffy-bar-inner';
+        barInner.style.width = `${result.prediction.jeffy * 100}%`;
+        barInner.textContent = `${jeffyPercent}%`;
+        barContainer.appendChild(barInner);
+        itemDiv.appendChild(barContainer);
 
         return itemDiv;
     }
+
+    // Handle form submission using server-sent events (SSE)
+    document.getElementById('colorForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const folder = document.getElementById('folder').value;
+        const color = document.getElementById('color').value;
+        // Convert threshold from percentage (number input) to a decimal.
+        const threshold = parseFloat(thresholdNumber.value) / 100;
+        const maxFiles = document.getElementById('maxFiles').value;
+        const metric = document.getElementById('metric').value;
+        // Clear previous results.
+        allResults.length = 0;
+        resultsDiv.innerHTML = '';
+
+
+        const params = {
+            folder,
+            color,
+            threshold,
+            max: maxFiles,
+            metric,
+            distance: true,
+            classify: true,
+        };
+
+        const queryString = Object.entries(params)
+            .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+            .join('&');
+
+        const path = `/walk?${queryString}`;
+
+        // Use EventSource to handle server-sent events.
+        source = new EventSource(path);
+        cancelButton.disabled = false;
+
+        source.onmessage = function (event) {
+            // Each event.data is expected to be a JSON string (without the "data:" prefix as it's automatically removed).
+            processLine(event.data);
+        };
+
+        source.onerror = function (err) {
+            console.error("EventSource failed: ", err);
+            source.close();
+            cancelButton.disabled = true;
+        };
+    });
+
+    // Cancel button to close the SSE connection.
+    cancelButton.addEventListener('click', () => {
+        if (source) {
+            source.close();
+            cancelButton.disabled = true;
+        }
+    });
 </script>
 </body>
 </html>
