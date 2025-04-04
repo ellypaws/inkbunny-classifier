@@ -145,6 +145,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type Result struct {
+	Path       string               `json:"path"`
 	Color      *distance.Result     `json:"color,omitempty"`
 	Prediction *classify.Prediction `json:"prediction,omitempty"`
 }
@@ -200,7 +201,7 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 
 		var (
 			group  sync.WaitGroup
-			result Result
+			result = Result{Path: path}
 		)
 
 		distanceConfig.semaphore <- struct{}{}
