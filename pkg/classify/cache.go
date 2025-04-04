@@ -19,6 +19,11 @@ type cache struct {
 	predictions map[string]Prediction
 }
 
+func (c *cache) reset() {
+	c.RWMutex = new(sync.RWMutex)
+	c.predictions = make(map[string]Prediction)
+}
+
 func (c *cache) Save(name string) error {
 	f, err := os.Create(name)
 	if err != nil {

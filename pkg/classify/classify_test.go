@@ -21,6 +21,7 @@ func TestPredict(t *testing.T) {
 }
 
 func TestCache_CachePrediction(t *testing.T) {
+	DefaultCache.reset()
 	for range 5 {
 		now := time.Now()
 		prediction, err := DefaultCache.Predict(context.Background(), "image", image)
