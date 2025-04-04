@@ -153,6 +153,14 @@
             <option value="DistanceCIEDE2000">DistanceCIEDE2000</option>
         </select>
     </label>
+    <label>
+        <input type="checkbox" id="enableDistance" checked> 
+        Enable Color Distance
+    </label>
+    <label>
+        <input type="checkbox" id="enableClassify" checked> 
+        Enable Classification
+    </label>
     <button type="submit">Start</button>
     <button type="button" id="cancelBtn" disabled>Cancel</button>
 </form>
@@ -220,6 +228,10 @@
     const filterJeffyNumber = document.getElementById('filterJeffyNumber');
     /** @type {HTMLInputElement} */
     const filterJeffyRange = document.getElementById('filterJeffyRange');
+    /** @type {HTMLInputElement} */
+    const enableDistance = document.getElementById('enableDistance');
+    /** @type {HTMLInputElement} */
+    const enableClassify = document.getElementById('enableClassify');
 
     /**
      * Loads a setting from localStorage into the specified HTML element
@@ -230,9 +242,17 @@
         const el = document.getElementById(id);
         const stored = localStorage.getItem(id);
         if (stored !== null) {
-            el.value = stored;
+            if (el.type === 'checkbox') {
+                el.checked = stored === 'true';
+            } else {
+                el.value = stored;
+            }
         } else {
-            el.value = defaultValue;
+            if (el.type === 'checkbox') {
+                el.checked = defaultValue === 'true';
+            } else {
+                el.value = defaultValue;
+            }
         }
     }
 
@@ -245,6 +265,8 @@
         loadSetting('metric', 'DistanceLab');
         loadSetting('filterDistanceNumber', '50');
         loadSetting('filterJeffyNumber', '0');
+        loadSetting('enableDistance', 'true');
+        loadSetting('enableClassify', 'true');
 
         // Sync ranges with numbers
         thresholdRange.value = thresholdNumber.value;
@@ -264,6 +286,12 @@
     });
     document.getElementById('metric').addEventListener('change', (e) => {
         localStorage.setItem('metric', e.target.value);
+    });
+    document.getElementById('enableDistance').addEventListener('change', (e) => {
+        localStorage.setItem('enableDistance', e.target.checked);
+    });
+    document.getElementById('enableClassify').addEventListener('change', (e) => {
+        localStorage.setItem('enableClassify', e.target.checked);
     });
 
     // Sync slider pairs and save settings
@@ -313,10 +341,13 @@
             const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
             const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
 
-            // Check filters: using result.color and result.prediction values
-            if (result.color?.found &&
-                result.color.distance <= maxDistance &&
-                result.prediction?.jeffy >= minJeffy) {
+            // Check filters: safely check if properties exist
+            const colorMatch = !result.color || 
+                (result.color.found && result.color.distance <= maxDistance);
+            const jeffyMatch = !result.prediction || 
+                (result.prediction.jeffy >= minJeffy);
+
+            if (colorMatch && jeffyMatch) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -397,8 +428,8 @@
             threshold,
             max: maxFiles,
             metric,
-            distance: true,
-            classify: true,
+            distance: enableDistance.checked,
+            classify: enableClassify.checked,
         };
 
         const queryString = Object.entries(params)
