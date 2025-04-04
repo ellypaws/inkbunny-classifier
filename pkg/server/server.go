@@ -90,12 +90,10 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 		metric = colorful.Color.DistanceLab
 	}
 
-	ctx := r.Context()
 	results := make(chan Result)
-
 	go func() {
 		shouldGetDistance = true
-		walkDir(ctx, folder, maxFiles, results,
+		walkDir(r.Context(), folder, maxFiles, results,
 			distanceConfig{
 				enabled:   shouldGetDistance,
 				target:    target,
@@ -115,7 +113,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 	if flusher, ok := w.(http.Flusher); ok {
 		for res := range results {
 			select {
-			case <-ctx.Done():
+			case <-r.Context().Done():
 				break // interrupt detected
 			default:
 				if err := enc.Encode(res); err != nil {
@@ -129,7 +127,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 		var allResults []Result
 		for res := range results {
 			select {
-			case <-ctx.Done():
+			case <-r.Context().Done():
 				break
 			default:
 				allResults = append(allResults, res)
