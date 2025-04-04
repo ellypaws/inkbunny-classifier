@@ -341,13 +341,11 @@
             const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
             const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
 
-            // Check filters: safely check if properties exist
-            const colorMatch = !result.color || 
-                (result.color.found && result.color.distance <= maxDistance);
-            const jeffyMatch = !result.prediction || 
-                (result.prediction.jeffy >= minJeffy);
+            // Apply filter only if the corresponding property exists.
+            const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesJeffyFilter = result.prediction ? (result.prediction.jeffy >= minJeffy) : true;
 
-            if (colorMatch && jeffyMatch) {
+            if (passesColorFilter && passesJeffyFilter) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -364,9 +362,9 @@
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
         const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
         allResults.forEach(result => {
-            if (result.color?.found &&
-                result.color.distance <= maxDistance &&
-                result.prediction?.jeffy >= minJeffy) {
+            const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesJeffyFilter = result.prediction ? (result.prediction.jeffy >= minJeffy) : true;
+            if (passesColorFilter && passesJeffyFilter) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
