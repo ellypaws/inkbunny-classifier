@@ -389,24 +389,37 @@
 
         const infoDiv = document.createElement('div');
         infoDiv.className = 'info';
-        // Convert distance and jeffy values to percentages for display.
-        const distancePercent = (result.color.distance * 100).toFixed(2);
-        const jeffyPercent = (result.prediction.jeffy * 100).toFixed(2);
-        infoDiv.innerHTML = `Color Distance: ${distancePercent}%<br>Jeffy: ${jeffyPercent}%`;
+
+        // Build info content with optional checks.
+        let infoHTML = '';
+        if (result.color && typeof result.color.distance === 'number') {
+            const distancePercent = (result.color.distance * 100).toFixed(2);
+            infoHTML += `Color Distance: ${distancePercent}%<br>`;
+        }
+
+        if (result.prediction && typeof result.prediction.jeffy === 'number') {
+            const jeffyPercent = (result.prediction.jeffy * 100).toFixed(2);
+            infoHTML += `Jeffy: ${jeffyPercent}%`;
+        }
+        infoDiv.innerHTML = infoHTML;
         itemDiv.appendChild(infoDiv);
 
-        // Create a styled bar for jeffy percentage.
-        const barContainer = document.createElement('div');
-        barContainer.className = 'jeffy-bar';
-        const barInner = document.createElement('div');
-        barInner.className = 'jeffy-bar-inner';
-        barInner.style.width = `${result.prediction.jeffy * 100}%`;
-        barInner.textContent = `${jeffyPercent}%`;
-        barContainer.appendChild(barInner);
-        itemDiv.appendChild(barContainer);
+        // Only create the jeffy bar if prediction exists and has a valid jeffy value.
+        if (result.prediction && typeof result.prediction.jeffy === 'number') {
+            const barContainer = document.createElement('div');
+            barContainer.className = 'jeffy-bar';
+            const barInner = document.createElement('div');
+            barInner.className = 'jeffy-bar-inner';
+            const jeffyPercent = (result.prediction.jeffy * 100).toFixed(2);
+            barInner.style.width = `${result.prediction.jeffy * 100}%`;
+            barInner.textContent = `${jeffyPercent}%`;
+            barContainer.appendChild(barInner);
+            itemDiv.appendChild(barContainer);
+        }
 
         return itemDiv;
     }
+
 
     // Handle form submission using server-sent events (SSE)
     document.getElementById('colorForm').addEventListener('submit', function (e) {
