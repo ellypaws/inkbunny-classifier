@@ -10,9 +10,9 @@ import (
 
 //go:embed jeffy.png
 var file []byte
+var image = bytes.NewReader(file)
 
 func TestPredict(t *testing.T) {
-	image := bytes.NewReader(file)
 	prediction, err := Predict(context.Background(), image)
 	if err != nil {
 		t.Fatal(err)
@@ -22,7 +22,6 @@ func TestPredict(t *testing.T) {
 
 func TestCache_CachePrediction(t *testing.T) {
 	for range 5 {
-		image := bytes.NewReader(file)
 		now := time.Now()
 		prediction, err := DefaultCache.Predict(context.Background(), "image", image)
 		if err != nil {
