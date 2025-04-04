@@ -177,22 +177,55 @@
 <div id="results"></div>
 
 <script>
+    /**
+     * @typedef {Object} ColorResult
+     * @property {boolean} found - Whether the target color was found within threshold
+     * @property {number} distance - Distance value between target and found color
+     */
+
+    /**
+     * @typedef {Object} Prediction
+     * @property {number} jeffy - Probability score for "jeffy" class
+     * @property {number} jeffy_lineart - Probability score for "jeffy_lineart" class
+     * @property {number} not_jeffy - Probability score for "not_jeffy" class
+     */
+
+    /**
+     * @typedef {Object} Result
+     * @property {string} path - File path to the image
+     * @property {ColorResult} [color] - Color comparison results, if enabled
+     * @property {Prediction} [prediction] - Classification prediction results, if enabled
+     */
+
     // Global variables
-    /** @type {Array<Object>} */
+    /** @type {Result[]} */
     const allResults = [];
+    /** @type {HTMLElement} */
     const resultsDiv = document.getElementById('results');
+    /** @type {HTMLButtonElement} */
     const cancelButton = document.getElementById('cancelBtn');
+    /** @type {EventSource|null} */
     let source = null; // will hold the EventSource
 
     // Get references for slider pairs
+    /** @type {HTMLInputElement} */
     const thresholdNumber = document.getElementById('thresholdNumber');
+    /** @type {HTMLInputElement} */
     const thresholdRange = document.getElementById('thresholdRange');
+    /** @type {HTMLInputElement} */
     const filterDistanceNumber = document.getElementById('filterDistanceNumber');
+    /** @type {HTMLInputElement} */
     const filterDistanceRange = document.getElementById('filterDistanceRange');
+    /** @type {HTMLInputElement} */
     const filterJeffyNumber = document.getElementById('filterJeffyNumber');
+    /** @type {HTMLInputElement} */
     const filterJeffyRange = document.getElementById('filterJeffyRange');
 
-    // Utility function to load setting from localStorage
+    /**
+     * Loads a setting from localStorage into the specified HTML element
+     * @param {string} id - Element ID to load the setting into
+     * @param {string} defaultValue - Default value if no saved setting exists
+     */
     function loadSetting(id, defaultValue) {
         const el = document.getElementById(id);
         const stored = localStorage.getItem(id);
@@ -265,11 +298,14 @@
         renderFilteredResults();
     });
 
-    // Function to process a single SSE message line (expects JSON string)
+    /**
+     * Processes a single SSE message line containing JSON data
+     * @param {string} line - JSON string from the server event
+     */
     function processLine(line) {
         if (!line.trim()) return;
         try {
-            // Parse the incoming JSON object.
+            /** @type {Result} */
             const result = JSON.parse(line);
             allResults.push(result);
 
@@ -277,8 +313,10 @@
             const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
             const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
 
-            // Check filters: using result.color and result.prediction.jeffy
-            if (result.color.found && result.color.distance <= maxDistance && result.prediction.jeffy >= minJeffy) {
+            // Check filters: using result.color and result.prediction values
+            if (result.color?.found &&
+                result.color.distance <= maxDistance &&
+                result.prediction?.jeffy >= minJeffy) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -287,21 +325,27 @@
         }
     }
 
-    // Renders all results that pass the current filters.
+    /**
+     * Re-renders all results that pass the current filters
+     */
     function renderFilteredResults() {
         resultsDiv.innerHTML = '';
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
         const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
         allResults.forEach(result => {
-            if (result.color.found && result.color.distance <= maxDistance && result.prediction.jeffy >= minJeffy) {
+            if (result.color?.found &&
+                result.color.distance <= maxDistance &&
+                result.prediction?.jeffy >= minJeffy) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
         });
     }
 
-    /*
-     
+    /**
+     * Creates a DOM element representing a result item
+     * @param {Result} result - The result object to display
+     * @returns {HTMLDivElement} - The created result item element
      */
     function createResultItem(result) {
         const itemDiv = document.createElement('div');
