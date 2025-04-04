@@ -13,7 +13,6 @@ import (
 )
 
 type Result struct {
-	Path     string  `json:"path,omitempty"`
 	Found    bool    `json:"found,omitempty"`
 	Distance float64 `json:"distance,omitempty"`
 }
@@ -24,12 +23,12 @@ func PixelDistance(ctx context.Context, name string, file io.ReadSeeker, target 
 	_, err := file.Seek(0, io.SeekStart)
 	if err != nil {
 		log.Printf("Error seeking to beginning of file: %v", err)
-		return Result{Path: name, Found: false, Distance: -1}
+		return Result{Found: false, Distance: -1}
 	}
 	img, _, err := image.Decode(file)
 	if err != nil {
 		log.Printf("error decoding %s: %v", name, err)
-		return Result{Path: name, Found: false, Distance: -1}
+		return Result{Found: false, Distance: -1}
 	}
 
 	lowest := -1.0
@@ -48,7 +47,7 @@ func PixelDistance(ctx context.Context, name string, file io.ReadSeeker, target 
 			}
 		}
 	}
-	return Result{Path: name, Found: lowest >= 0, Distance: lowest}
+	return Result{Found: lowest >= 0, Distance: lowest}
 }
 
 // pixels is an iterator over all the pixels in an image.

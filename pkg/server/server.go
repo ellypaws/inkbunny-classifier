@@ -229,11 +229,11 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			case <-ctx.Done():
 			default:
 				if !pixelDistance.Found {
-					log.Printf("%s not found, lowest: %.3f", pixelDistance.Path, pixelDistance.Distance)
+					log.Printf("%s not found, lowest: %.3f", path, pixelDistance.Distance)
 					return
 				}
-				log.Printf("Found %#v", pixelDistance)
 				result.Color = &pixelDistance
+				log.Printf("Found %s %#v", path, pixelDistance)
 			}
 		}(path)
 
@@ -252,8 +252,8 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 					log.Printf("Error classifying %s: %v", path, err)
 					return
 				}
-				log.Printf("Found %#v", prediction)
 				result.Prediction = &prediction
+				log.Printf("Found %s %#v", path, prediction)
 			}
 		}(path)
 
