@@ -64,13 +64,41 @@
             pointer-events: all !important;
         }
 
-        #controls {
+        .general-settings {
             margin-bottom: 1em;
-            background: #fff;
             padding: 1em;
+            background: #fff;
             border: 1px solid #ccc;
             border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .columns {
+            display: flex;
+            gap: 1em;
+        }
+
+        .column {
+            flex: 1;
+            padding: 1em;
+            border: 1px solid gray;
+            border-radius: 5px;
+        }
+
+        .column.enabled {
+            border: 1px solid green;
+        }
+
+        .column.disabled {
+            border: 1px solid gray;
+        }
+
+        .column-header {
+            margin-bottom: 1em;
+            font-weight: bold;
+        }
+
+        .actions {
+            margin-top: 1em;
         }
 
         #results {
@@ -123,64 +151,78 @@
 <body>
 <h1>Color Finder - Thumbnail Viewer</h1>
 <form id="colorForm">
-    <label>
-        Folder Path:
-        <input type="text" id="folder" placeholder="/path/to/images" required>
-    </label>
-    <label>
-        Target Color:
-        <input type="color" id="color" value="#ff0000" required>
-    </label>
-    <label>
-        Threshold (Max Distance) (%):
-        <div class="slider-container">
-            <input type="number" id="thresholdNumber" step="0.1" min="0" max="100" value="50">
-            <input type="range" id="thresholdRange" step="0.1" min="0" max="100" value="50">
-        </div>
-    </label>
-    <label>
-        Max Files:
-        <input type="number" id="maxFiles" min="1" value="500">
-    </label>
-    <label>
-        Distance Function:
-        <select id="metric">
-            <option value="DistanceRgb">DistanceRgb</option>
-            <option value="DistanceLab" selected>DistanceLab</option>
-            <option value="DistanceLuv">DistanceLuv</option>
-            <option value="DistanceCIE76">DistanceCIE76</option>
-            <option value="DistanceCIE94">DistanceCIE94</option>
-            <option value="DistanceCIEDE2000">DistanceCIEDE2000</option>
-        </select>
-    </label>
-    <label>
-        <input type="checkbox" id="enableDistance" checked> 
-        Enable Color Distance
-    </label>
-    <label>
-        <input type="checkbox" id="enableClassify" checked> 
-        Enable Classification
-    </label>
-    <button type="submit">Start</button>
-    <button type="button" id="cancelBtn" disabled>Cancel</button>
-</form>
+    <div class="general-settings">
+        <label>
+            Folder Path:
+            <input type="text" id="folder" placeholder="/path/to/images" required>
+        </label>
+        <label>
+            Max Files:
+            <input type="number" id="maxFiles" min="1" value="500">
+        </label>
+    </div>
 
-<div id="controls">
-    <label>
-        Filter Max Distance (%):
-        <div class="slider-container">
-            <input type="number" id="filterDistanceNumber" step="0.1" min="0" max="100" value="50">
-            <input type="range" id="filterDistanceRange" step="0.1" min="0" max="100" value="50">
+    <div class="columns">
+        <!-- Color Distance Column -->
+        <div class="column enabled" id="colorDistanceColumn">
+            <div class="column-header">
+                <label>
+                    <input type="checkbox" id="enableDistance" checked> Enable Color Distance
+                </label>
+            </div>
+            <label>
+                Target Color:
+                <input type="color" id="color" value="#ff0000" required>
+            </label>
+            <label>
+                Threshold (Max Distance) (%):
+                <div class="slider-container">
+                    <input type="number" id="thresholdNumber" step="0.1" min="0" max="100" value="50">
+                    <input type="range" id="thresholdRange" step="0.1" min="0" max="100" value="50">
+                </div>
+            </label>
+            <label>
+                Distance Function:
+                <select id="metric">
+                    <option value="DistanceRgb">DistanceRgb</option>
+                    <option value="DistanceLab" selected>DistanceLab</option>
+                    <option value="DistanceLuv">DistanceLuv</option>
+                    <option value="DistanceCIE76">DistanceCIE76</option>
+                    <option value="DistanceCIE94">DistanceCIE94</option>
+                    <option value="DistanceCIEDE2000">DistanceCIEDE2000</option>
+                </select>
+            </label>
+            <label>
+                Filter Max Distance (%):
+                <div class="slider-container">
+                    <input type="number" id="filterDistanceNumber" step="0.1" min="0" max="100" value="50">
+                    <input type="range" id="filterDistanceRange" step="0.1" min="0" max="100" value="50">
+                </div>
+            </label>
         </div>
-    </label>
-    <label>
-        Filter Minimum Jeffy (%):
-        <div class="slider-container">
-            <input type="number" id="filterJeffyNumber" step="0.1" min="0" max="100" value="0">
-            <input type="range" id="filterJeffyRange" step="0.1" min="0" max="100" value="0">
+
+        <!-- Classifier Column -->
+        <div class="column enabled" id="classifierColumn">
+            <div class="column-header">
+                <label>
+                    <input type="checkbox" id="enableClassify" checked> Enable Classification
+                </label>
+            </div>
+            <label>
+                Filter Minimum Jeffy (%):
+                <div class="slider-container">
+                    <input type="number" id="filterJeffyNumber" step="0.1" min="0" max="100" value="0">
+                    <input type="range" id="filterJeffyRange" step="0.1" min="0" max="100" value="0">
+                </div>
+            </label>
         </div>
-    </label>
-</div>
+    </div>
+
+    <div class="actions">
+        <button type="submit">Start</button>
+        <button type="button" id="cancelBtn" disabled>Cancel</button>
+    </div>
+</form>
 
 <div id="results"></div>
 
@@ -232,6 +274,12 @@
     const enableDistance = document.getElementById('enableDistance');
     /** @type {HTMLInputElement} */
     const enableClassify = document.getElementById('enableClassify');
+    
+    
+    /** @type {HTMLElement} */
+    const colorDistanceColumn = document.getElementById('colorDistanceColumn');
+    /** @type {HTMLElement} */
+    const classifierColumn = document.getElementById('classifierColumn');
 
     /**
      * Loads a setting from localStorage into the specified HTML element
@@ -272,6 +320,10 @@
         thresholdRange.value = thresholdNumber.value;
         filterDistanceRange.value = filterDistanceNumber.value;
         filterJeffyRange.value = filterJeffyNumber.value;
+
+        // Update column borders based on initial checkbox states
+        updateColumnBorder(enableDistance, colorDistanceColumn);
+        updateColumnBorder(enableClassify, classifierColumn);
     });
 
     // Save changes to localStorage for non-slider inputs
@@ -287,12 +339,26 @@
     document.getElementById('metric').addEventListener('change', (e) => {
         localStorage.setItem('metric', e.target.value);
     });
-    document.getElementById('enableDistance').addEventListener('change', (e) => {
-        localStorage.setItem('enableDistance', e.target.checked);
+
+    // Enable checkbox event listeners to update column borders and save state
+    enableDistance.addEventListener('change', function () {
+        updateColumnBorder(this, colorDistanceColumn);
+        localStorage.setItem('enableDistance', this.checked.toString());
     });
-    document.getElementById('enableClassify').addEventListener('change', (e) => {
-        localStorage.setItem('enableClassify', e.target.checked);
+    enableClassify.addEventListener('change', function () {
+        updateColumnBorder(this, classifierColumn);
+        localStorage.setItem('enableClassify', this.checked.toString());
     });
+
+    function updateColumnBorder(checkbox, column) {
+        if (checkbox.checked) {
+            column.classList.remove('disabled');
+            column.classList.add('enabled');
+        } else {
+            column.classList.remove('enabled');
+            column.classList.add('disabled');
+        }
+    }
 
     // Sync slider pairs and save settings
     thresholdNumber.addEventListener('input', () => {
