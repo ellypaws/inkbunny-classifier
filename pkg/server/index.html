@@ -219,7 +219,7 @@
     </div>
 
     <div class="actions">
-        <button type="submit">Start</button>
+        <button type="submit" id="startButton">Start</button>
         <button type="button" id="cancelBtn" disabled>Cancel</button>
     </div>
 </form>
@@ -252,6 +252,8 @@
     const allResults = [];
     /** @type {HTMLElement} */
     const resultsDiv = document.getElementById('results');
+    /** @type {HTMLButtonElement} */
+    const startButton = document.getElementById('startButton');
     /** @type {HTMLButtonElement} */
     const cancelButton = document.getElementById('cancelBtn');
     /** @type {EventSource|null} */
@@ -488,6 +490,7 @@
     // Handle form submission using server-sent events (SSE)
     document.getElementById('colorForm').addEventListener('submit', function (e) {
         e.preventDefault();
+        startButton.disabled = true;
         const folder = document.getElementById('folder').value;
         const color = document.getElementById('color').value;
         // Convert threshold from percentage (number input) to a decimal.
@@ -527,6 +530,7 @@
         source.onerror = function (err) {
             console.error("EventSource failed: ", err);
             source.close();
+            startButton.disabled = false;
             cancelButton.disabled = true;
         };
     });
@@ -535,6 +539,7 @@
     cancelButton.addEventListener('click', () => {
         if (source) {
             source.close();
+            startButton.disabled = false;
             cancelButton.disabled = true;
         }
     });
