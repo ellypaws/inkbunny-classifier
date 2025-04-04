@@ -112,29 +112,32 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 
 	enc := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
-	flusher, ok := w.(http.Flusher)
-	if !ok {
+	if flusher, ok := w.(http.Flusher); ok {
+		for res := range results {
+			select {
+			case <-ctx.Done():
+				break // interrupt detected
+			default:
+				if err := enc.Encode(res); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				flusher.Flush()
+			}
+		}
+	} else {
 		var allResults []Result
 		for res := range results {
 			select {
 			case <-ctx.Done():
-				return
+				break
 			default:
 				allResults = append(allResults, res)
 			}
 		}
 		if err := enc.Encode(allResults); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-	for res := range results {
-		select {
-		case <-ctx.Done():
-			return // interrupt detected
-		default:
-			_ = enc.Encode(res)
-			flusher.Flush()
+			return
 		}
 	}
 
