@@ -201,6 +201,7 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 		if err != nil {
 			return err
 		}
+		defer file.Close()
 
 		select {
 		case <-ctx.Done():
