@@ -165,6 +165,10 @@ type classifyConfig struct {
 // walkDir traverses the folder rooted at "root" and, for each image file,
 // spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
 func walkDir(ctx context.Context, root string, max int, results chan<- Result, distanceConfig distanceConfig, classifyConfig classifyConfig) {
+	if !distanceConfig.enabled && !classifyConfig.enabled {
+		return
+	}
+
 	var (
 		count int
 		wg    sync.WaitGroup
