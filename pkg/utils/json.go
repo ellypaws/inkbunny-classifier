@@ -20,3 +20,9 @@ func Encode[T any](w io.Writer, t T) error {
 	encoder := json.NewEncoder(w)
 	return encoder.Encode(t)
 }
+
+func EncodeIndent[T any](w io.Writer, t T, indent string) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", indent)
+	return encoder.Encode(t)
+}

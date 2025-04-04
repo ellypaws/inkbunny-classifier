@@ -27,7 +27,7 @@ func (c *cache) Save(name string) error {
 	defer f.Close()
 	c.RLock()
 	defer c.RUnlock()
-	return utils.Encode(f, c.predictions)
+	return utils.EncodeIndent(f, c.predictions, "  ")
 }
 
 func (c *cache) Load(name string) error {
