@@ -21,7 +21,7 @@ func main() {
 
 	const port = 8080
 	log.Printf("Server starting on http://localhost:%d", port)
-	go http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	go log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 
 	wait()
 	classify.DefaultCache.Save("classifications.json")

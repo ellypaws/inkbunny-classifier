@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"log"
 	"net/http"
 	"sync"
 	"testing"
@@ -45,7 +46,7 @@ func start() {
 			panic(err)
 		}
 	})
-	go http.ListenAndServe("localhost:8000", nil)
+	go log.Fatal(http.ListenAndServe("localhost:8000", nil))
 }
 
 var warmupOnce sync.Once
