@@ -109,15 +109,25 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	enc := json.NewEncoder(w)
-	w.Header().Set("Content-Type", "application/json")
 	if flusher, ok := w.(http.Flusher); ok {
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
 		for res := range results {
 			select {
 			case <-r.Context().Done():
 				break // interrupt detected
 			default:
+				if _, err := w.Write([]byte("data: ")); err != nil {
+					log.Println("error writing data:", err)
+					return
+				}
 				if err := enc.Encode(res); err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if _, err := w.Write([]byte("\n")); err != nil {
+					log.Println("error writing data:", err)
 					return
 				}
 				flusher.Flush()
@@ -133,6 +143,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 				allResults = append(allResults, res)
 			}
 		}
+		w.Header().Set("Content-Type", "application/json")
 		if err := enc.Encode(allResults); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
