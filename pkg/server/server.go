@@ -1,0 +1,255 @@
+package server
+
+import (
+	"context"
+	_ "embed"
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+
+	"github.com/lucasb-eyer/go-colorful"
+
+	"jeffy/pkg/classify"
+	"jeffy/pkg/distance"
+)
+
+//go:embed index.html
+var index []byte
+
+// HomeHandler serves the main HTML page with a folder input and color wheel.
+func HomeHandler(w http.ResponseWriter, _ *http.Request) {
+	// The HTML page includes inline JS to send a GET request to /walk
+	// and then display streamed results.
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(index)
+}
+
+func FileProxy(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, filepath.Clean(r.PathValue("path")))
+}
+
+// WalkHandler is the HTTP API endpoint that receives query parameters,
+// starts the walkDir process, and streams results back using Flush.
+func WalkHandler(w http.ResponseWriter, r *http.Request) {
+	// get query parameters: folder, color (as hex) and optional threshold
+	folder := r.URL.Query().Get("folder")
+	colorHex := r.URL.Query().Get("color")
+	thresholdStr := r.URL.Query().Get("threshold")
+	maxStr := r.URL.Query().Get("max")
+	metricStr := r.URL.Query().Get("metric")
+	shouldGetDistance := r.URL.Query().Get("distance") == "true"
+	shouldClassify := r.URL.Query().Get("classify") == "true"
+
+	if folder == "" || colorHex == "" {
+		http.Error(w, "folder and color parameters are required", http.StatusBadRequest)
+		return
+	}
+
+	threshold := 0.1
+	if thresholdStr != "" {
+		if t, err := strconv.ParseFloat(thresholdStr, 64); err == nil {
+			threshold = t
+		}
+	}
+
+	maxFiles := -1
+	if maxStr != "" {
+		if m, err := strconv.Atoi(maxStr); err == nil && m > 0 {
+			maxFiles = m
+		}
+	}
+
+	// parse the hex color using go-colorful (expects "#RRGGBB")
+	target, err := colorful.Hex(colorHex)
+	if err != nil {
+		http.Error(w, "invalid color format; use hex (e.g. #ff0000)", http.StatusBadRequest)
+		return
+	}
+
+	metric := colorful.Color.DistanceLab
+	switch metricStr {
+	case "DistanceRgb":
+		metric = colorful.Color.DistanceRgb
+	case "DistanceLab":
+		metric = colorful.Color.DistanceLab
+	case "DistanceLuv":
+		metric = colorful.Color.DistanceLuv
+	case "DistanceCIE76":
+		metric = colorful.Color.DistanceCIE76
+	case "DistanceCIE94":
+		metric = colorful.Color.DistanceCIE94
+	case "DistanceCIEDE2000":
+		metric = colorful.Color.DistanceCIEDE2000
+	default:
+		metric = colorful.Color.DistanceLab
+	}
+
+	ctx := r.Context()
+	results := make(chan Result)
+
+	go func() {
+		shouldGetDistance = true
+		walkDir(ctx, folder, maxFiles, results,
+			distanceConfig{
+				enabled:   shouldGetDistance,
+				target:    target,
+				metric:    metric,
+				threshold: threshold,
+				semaphore: make(chan struct{}, runtime.NumCPU()),
+			},
+			classifyConfig{
+				enabled:   shouldClassify,
+				semaphore: make(chan struct{}, runtime.NumCPU()*2),
+			})
+		close(results)
+	}()
+
+	enc := json.NewEncoder(w)
+	w.Header().Set("Content-Type", "application/json")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		var allResults []Result
+		for res := range results {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				allResults = append(allResults, res)
+			}
+		}
+		if err := enc.Encode(allResults); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+	for res := range results {
+		select {
+		case <-ctx.Done():
+			return // interrupt detected
+		default:
+			_ = enc.Encode(res)
+			flusher.Flush()
+		}
+	}
+
+	log.Printf("Finished processing results for %q: distance=%t classify=%t", folder, shouldGetDistance, shouldClassify)
+}
+
+type Result struct {
+	Color      *distance.Result     `json:"color,omitempty"`
+	Prediction *classify.Prediction `json:"prediction,omitempty"`
+}
+
+type distanceConfig struct {
+	enabled   bool
+	target    colorful.Color
+	metric    func(colorful.Color, colorful.Color) float64
+	threshold float64
+	semaphore chan struct{}
+}
+type classifyConfig struct {
+	enabled   bool
+	semaphore chan struct{}
+}
+
+// walkDir traverses the folder rooted at "root" and, for each image file,
+// spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
+func walkDir(ctx context.Context, root string, max int, results chan<- Result, distanceConfig distanceConfig, classifyConfig classifyConfig) {
+	var (
+		count int
+		wg    sync.WaitGroup
+	)
+
+	if distanceConfig.metric == nil {
+		distanceConfig.metric = colorful.Color.DistanceLab
+	}
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(strings.ToLower(path), ".png") && !strings.HasSuffix(path, ".jpg") {
+			return nil
+		}
+		if max > 0 && count >= max {
+			return filepath.SkipDir
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		count++
+		wg.Add(1)
+
+		var (
+			group  sync.WaitGroup
+			result Result
+		)
+
+		distanceConfig.semaphore <- struct{}{}
+		group.Add(1)
+		go func(path string) {
+			defer func() { <-distanceConfig.semaphore; group.Done() }()
+			if !distanceConfig.enabled {
+				return
+			}
+			pixelDistance := distance.PixelDistance(ctx, path, file, distanceConfig.target, distanceConfig.threshold, distanceConfig.metric)
+			select {
+			case <-ctx.Done():
+			default:
+				if !pixelDistance.Found {
+					log.Printf("%s not found, lowest: %.3f", pixelDistance.Path, pixelDistance.Distance)
+					return
+				}
+				log.Printf("Found %#v", pixelDistance)
+				result.Color = &pixelDistance
+			}
+		}(path)
+
+		classifyConfig.semaphore <- struct{}{}
+		group.Add(1)
+		go func(path string) {
+			defer func() { <-classifyConfig.semaphore; group.Done() }()
+			if !classifyConfig.enabled {
+				return
+			}
+			prediction, err := classify.DefaultCache.Predict(ctx, path, file)
+			select {
+			case <-ctx.Done():
+			default:
+				if err != nil {
+					log.Printf("Error classifying %s: %v", path, err)
+					return
+				}
+				log.Printf("Found %#v", prediction)
+				result.Prediction = &prediction
+			}
+		}(path)
+
+		go func() {
+			group.Wait()
+			results <- result
+			wg.Done()
+		}()
+
+		return nil
+	})
+	if err != nil {
+		log.Printf("error walking the path %s: %v", root, err)
+	}
+	wg.Wait()
+}
