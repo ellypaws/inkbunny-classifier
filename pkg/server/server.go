@@ -92,7 +92,6 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 
 	results := make(chan Result)
 	go func() {
-		shouldGetDistance = true
 		walkDir(r.Context(), folder, maxFiles, results,
 			distanceConfig{
 				enabled:   shouldGetDistance,
@@ -259,7 +258,9 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 
 		go func() {
 			group.Wait()
-			results <- result
+			if result.Prediction != nil || result.Color != nil {
+				results <- result
+			}
 			wg.Done()
 		}()
 
