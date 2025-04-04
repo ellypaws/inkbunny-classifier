@@ -3,9 +3,11 @@ package classify
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"time"
 
 	"jeffy/pkg/utils"
@@ -47,6 +49,25 @@ func Predict(ctx context.Context, file io.ReadSeeker) (Prediction, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return utils.DecodeAndClose[Prediction](resp.Body)
+}
+
+func PredictURL(ctx context.Context, path string) (Prediction, error) {
+	params := url.Values{
+		"url": {fmt.Sprintf("http://localhost:8080/file/%s", path)},
+	}
+	requestURL := fmt.Sprintf("http://localhost:7860/predict?%s", params.Encode())
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)

@@ -63,3 +63,22 @@ func (c *cache) Predict(ctx context.Context, name string, file io.ReadSeeker) (P
 
 	return d, nil
 }
+
+func (c *cache) PredictURL(ctx context.Context, path string) (Prediction, error) {
+	c.RLock()
+	if v, ok := c.predictions[path]; ok {
+		c.RUnlock()
+		return v, nil
+	}
+	c.RUnlock()
+
+	c.Lock()
+	defer c.Unlock()
+	d, err := PredictURL(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	c.predictions[path] = d
+
+	return d, nil
+}
