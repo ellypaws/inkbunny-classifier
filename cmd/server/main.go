@@ -18,20 +18,17 @@ func main() {
 	http.HandleFunc("GET /file/{path}", server.FileProxy)
 
 	classify.DefaultCache.Load("classifications.json")
+	defer classify.DefaultCache.Save("classifications.json")
 
+	done := make(chan os.Signal, 1)
 	const port = 8080
 	log.Printf("Server starting on http://localhost:%d", port)
-	go log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
+	go func() { log.Println(http.ListenAndServe(fmt.Sprintf(":%d", port), nil)); close(done) }()
 
-	wait()
-	classify.DefaultCache.Save("classifications.json")
+	wait(done)
 }
 
-func wait() {
-	done := make(chan os.Signal, 1)
+func wait(done chan os.Signal) {
 	signal.Notify(done, os.Interrupt)
-	select {
-	case <-done:
-		return
-	}
+	<-done
 }
