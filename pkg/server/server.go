@@ -262,6 +262,8 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			group.Wait()
 			if result.Prediction != nil || result.Color != nil {
 				results <- result
+			} else {
+				log.Warn("No results found", "path", path)
 			}
 			file.Close()
 			wg.Done()
