@@ -7,8 +7,8 @@ import (
 	_ "image/png"
 	"io"
 	"iter"
-	"log"
 
+	"github.com/charmbracelet/log"
 	"github.com/lucasb-eyer/go-colorful"
 )
 
@@ -22,12 +22,12 @@ type Result struct {
 func PixelDistance(ctx context.Context, name string, file io.ReadSeeker, target colorful.Color, maxDistance float64, distanceFunc func(colorful.Color, colorful.Color) float64) Result {
 	_, err := file.Seek(0, io.SeekStart)
 	if err != nil {
-		log.Printf("Error seeking to beginning of file: %v", err)
+		log.Errorf("Error seeking to beginning of file: %v", err)
 		return Result{Found: false, Distance: -1}
 	}
 	img, _, err := image.Decode(file)
 	if err != nil {
-		log.Printf("error decoding %s: %v", name, err)
+		log.Errorf("error decoding %s: %v", name, err)
 		return Result{Found: false, Distance: -1}
 	}
 

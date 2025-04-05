@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/charmbracelet/log"
 	"github.com/lucasb-eyer/go-colorful"
 
 	"jeffy/pkg/classify"
@@ -118,15 +118,16 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 				break // interrupt detected
 			default:
 				if _, err := w.Write([]byte("data: ")); err != nil {
-					log.Println("error writing data:", err)
+					log.Error("error writing data:", "err", err)
 					return
 				}
 				if err := enc.Encode(res); err != nil {
+					log.Error("error writing data:", "err", err)
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				if _, err := w.Write([]byte("\n")); err != nil {
-					log.Println("error writing data:", err)
+					log.Error("error writing data:", "err", err)
 					return
 				}
 				flusher.Flush()
@@ -144,12 +145,13 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := enc.Encode(allResults); err != nil {
+			log.Error("error writing data:", "err", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 
-	log.Printf("Finished processing results for %q: distance=%t classify=%t", folder, shouldGetDistance, shouldClassify)
+	log.Info("Finished processing results for", "folder", folder, "distance", shouldGetDistance, "classify", shouldClassify)
 }
 
 type Result struct {
@@ -228,11 +230,11 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			case <-ctx.Done():
 			default:
 				if !pixelDistance.Found {
-					log.Printf("%s not found, lowest: %.3f", path, pixelDistance.Distance)
+					log.Warnf("%s not found, lowest: %.3f", path, pixelDistance.Distance)
 					return
 				}
 				result.Color = &pixelDistance
-				log.Printf("Found %s %#v", path, pixelDistance)
+				log.Debugf("Found %s %#v", path, pixelDistance)
 			}
 		}(path)
 
@@ -248,11 +250,11 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			case <-ctx.Done():
 			default:
 				if err != nil {
-					log.Printf("Error classifying %s: %v", path, err)
+					log.Error("Error classifying", "path", path, "err", err)
 					return
 				}
 				result.Prediction = &prediction
-				log.Printf("Found %s %#v", path, prediction)
+				log.Debugf("Found %s %#v", path, prediction)
 			}
 		}(path)
 
@@ -268,7 +270,7 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 		return nil
 	})
 	if err != nil {
-		log.Printf("error walking the path %s: %v", root, err)
+		log.Errorf("error walking the path %s: %v", root, err)
 	}
 	wg.Wait()
 }
