@@ -197,16 +197,15 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			return filepath.SkipDir
 		}
 
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return err
 		}
 
 		count++
@@ -262,6 +261,7 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			if result.Prediction != nil || result.Color != nil {
 				results <- result
 			}
+			file.Close()
 			wg.Done()
 		}()
 
