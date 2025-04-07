@@ -15,7 +15,7 @@ import (
 
 type Prediction map[string]float64
 
-var bodyPool = utils.NewPoolMake[bytes.Buffer]()
+var bodyPool = utils.NewPoolMake[*bytes.Buffer]()
 
 const predictURL = "http://localhost:7860/predict"
 

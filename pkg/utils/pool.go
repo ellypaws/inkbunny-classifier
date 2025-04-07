@@ -21,8 +21,8 @@ func NewPool[T any]() pool[T] {
 	})
 }
 
-func NewPoolMake[T any]() pool[*T] {
-	return New[*T](func() *T {
+func NewPoolMake[P *T, T any]() pool[P] {
+	return New[P](func() P {
 		return new(T)
 	})
 }
