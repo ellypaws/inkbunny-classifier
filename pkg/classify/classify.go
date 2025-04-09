@@ -22,6 +22,7 @@ const predictURL = "http://localhost:7860/predict"
 func Predict(ctx context.Context, file io.ReadSeeker) (Prediction, error) {
 	body := bodyPool.Get()
 	body.Reset()
+	defer bodyPool.Put(body)
 
 	writer := multipart.NewWriter(body)
 
