@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Classifier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+            background: #f0f0f0;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        form {
+            margin-bottom: 2em;
+            padding: 1em;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 1em;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+
+        input[type="text"],
+        input[type="color"],
+        input[type="number"],
+        input[type="range"],
+        select {
+            padding: 0.5em;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+
+        button {
+            padding: 0.7em 1.2em;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            pointer-events: all !important;
+        }
+
+        .general-settings {
+            margin-bottom: 1em;
+            padding: 1em;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .columns {
+            display: flex;
+            gap: 1em;
+        }
+
+        .column {
+            flex: 1;
+            padding: 1em;
+            border: 1px solid gray;
+            border-radius: 5px;
+        }
+
+        .column.enabled {
+            border: 1px solid green;
+        }
+
+        .column.disabled {
+            border: 1px solid gray;
+        }
+
+        .column-header {
+            margin-bottom: 1em;
+            font-weight: bold;
+        }
+
+        .actions {
+            margin-top: 1em;
+        }
+
+        #results {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1em;
+        }
+
+        .result-item {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 0.5em;
+            border-radius: 5px;
+            width: 200px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .result-item img {
+            max-width: 100%;
+            max-height: 150px;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 0.5em;
+        }
+
+        .result-item .info {
+            font-size: 0.9em;
+            color: #333;
+            word-wrap: break-word;
+        }
+
+        .cub-bar {
+            background: #ddd;
+            border-radius: 3px;
+            overflow: hidden;
+            height: 20px;
+            margin-top: 0.5em;
+        }
+
+        .cub-bar-inner {
+            height: 100%;
+            text-align: center;
+            line-height: 20px;
+            background: #007bff;
+            color: white;
+            width: 0%;
+        }
+    </style>
+</head>
+<body>
+<h1>Cub Finder</h1>
+<form id="colorForm">
+    <div class="general-settings">
+        <label>
+            Folder Path:
+            <input type="text" id="folder" placeholder="/path/to/images" required>
+        </label>
+        <label>
+            Max Files:
+            <input type="number" id="maxFiles" min="1" value="500">
+        </label>
+    </div>
+
+    <div class="columns">
+        <!-- Color Distance Column -->
+        <div class="column enabled" id="colorDistanceColumn" hidden>
+            <div class="column-header">
+                <label>
+                    <input type="checkbox" id="enableDistance" checked> Enable Color Distance
+                </label>
+            </div>
+            <label>
+                Target Color:
+                <input type="color" id="color" value="#ff0000" required>
+            </label>
+            <label>
+                Threshold (Max Distance) (%):
+                <div class="slider-container">
+                    <input type="number" id="thresholdNumber" step="0.1" min="0" max="100" value="50">
+                    <input type="range" id="thresholdRange" step="0.1" min="0" max="100" value="50">
+                </div>
+            </label>
+            <label>
+                Distance Function:
+                <select id="metric">
+                    <option value="DistanceRgb">DistanceRgb</option>
+                    <option value="DistanceLab" selected>DistanceLab</option>
+                    <option value="DistanceLuv">DistanceLuv</option>
+                    <option value="DistanceCIE76">DistanceCIE76</option>
+                    <option value="DistanceCIE94">DistanceCIE94</option>
+                    <option value="DistanceCIEDE2000">DistanceCIEDE2000</option>
+                </select>
+            </label>
+            <label>
+                Filter Max Distance (%):
+                <div class="slider-container">
+                    <input type="number" id="filterDistanceNumber" step="0.1" min="0" max="100" value="50">
+                    <input type="range" id="filterDistanceRange" step="0.1" min="0" max="100" value="50">
+                </div>
+            </label>
+        </div>
+
+        <!-- Classifier Column -->
+        <div class="column enabled" id="classifierColumn">
+            <div class="column-header">
+                <label>
+                    <input type="checkbox" id="enableClassify" checked> Enable Classification
+                </label>
+            </div>
+            <label>
+                Filter Minimum (%):
+                <div class="slider-container">
+                    <input type="number" id="filterCubNumber" step="0.1" min="0" max="100" value="0">
+                    <input type="range" id="filterCubRange" step="0.1" min="0" max="100" value="0">
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button type="submit" id="startButton">Start</button>
+        <button type="button" id="cancelBtn" disabled>Cancel</button>
+    </div>
+</form>
+
+<div id="results"></div>
+
+<script>
+    /**
+     * @typedef {Object} ColorResult
+     * @property {boolean} found - Whether the target color was found within threshold
+     * @property {number} distance - Distance value between target and found color
+     */
+
+    /**
+     * @typedef {Object} Prediction
+     * @property {number} cub ist - Probability score for "cub" class
+     * @property {number} anime - Probability score for "anime" class
+     * @property {number} adult - Probability score for "adult" class
+     */
+
+    /**
+     * @typedef {Object} Result
+     * @property {string} path - File path to the image
+     * @property {ColorResult} [color] - Color comparison results, if enabled
+     * @property {Prediction} [prediction] - Classification prediction results, if enabled
+     */
+
+    // Global variables
+    /** @type {Result[]} */
+    const allResults = [];
+    /** @type {HTMLElement} */
+    const resultsDiv = document.getElementById('results');
+    /** @type {HTMLButtonElement} */
+    const startButton = document.getElementById('startButton');
+    /** @type {HTMLButtonElement} */
+    const cancelButton = document.getElementById('cancelBtn');
+    /** @type {EventSource|null} */
+    let source = null; // will hold the EventSource
+
+    // Get references for slider pairs
+    /** @type {HTMLInputElement} */
+    const thresholdNumber = document.getElementById('thresholdNumber');
+    /** @type {HTMLInputElement} */
+    const thresholdRange = document.getElementById('thresholdRange');
+    /** @type {HTMLInputElement} */
+    const filterDistanceNumber = document.getElementById('filterDistanceNumber');
+    /** @type {HTMLInputElement} */
+    const filterDistanceRange = document.getElementById('filterDistanceRange');
+    /** @type {HTMLInputElement} */
+    const filterClassNumber = document.getElementById('filterCubNumber');
+    /** @type {HTMLInputElement} */
+    const filterCubRange = document.getElementById('filterCubRange');
+    /** @type {HTMLInputElement} */
+    const enableDistance = document.getElementById('enableDistance');
+    /** @type {HTMLInputElement} */
+    const enableClassify = document.getElementById('enableClassify');
+    
+    
+    /** @type {HTMLElement} */
+    const colorDistanceColumn = document.getElementById('colorDistanceColumn');
+    /** @type {HTMLElement} */
+    const classifierColumn = document.getElementById('classifierColumn');
+
+    /**
+     * Loads a setting from localStorage into the specified HTML element
+     * @param {string} id - Element ID to load the setting into
+     * @param {string} defaultValue - Default value if no saved setting exists
+     */
+    function loadSetting(id, defaultValue) {
+        const el = document.getElementById(id);
+        const stored = localStorage.getItem(id);
+        if (stored !== null) {
+            if (el.type === 'checkbox') {
+                el.checked = stored === 'true';
+            } else {
+                el.value = stored;
+            }
+        } else {
+            if (el.type === 'checkbox') {
+                el.checked = defaultValue === 'true';
+            } else {
+                el.value = defaultValue;
+            }
+        }
+    }
+
+    // Load saved settings on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSetting('folder', '');
+        loadSetting('color', '#ff0000');
+        loadSetting('thresholdNumber', '50');
+        loadSetting('maxFiles', '500');
+        loadSetting('metric', 'DistanceLab');
+        loadSetting('filterDistanceNumber', '50');
+        loadSetting('filterClassNumber', '0');
+        loadSetting('enableDistance', 'true');
+        loadSetting('enableClassify', 'true');
+
+        // Sync ranges with numbers
+        thresholdRange.value = thresholdNumber.value;
+        filterDistanceRange.value = filterDistanceNumber.value;
+        filterCubRange.value = filterClassNumber.value;
+
+        // Update column borders based on initial checkbox states
+        updateColumnBorder(enableDistance, colorDistanceColumn);
+        updateColumnBorder(enableClassify, classifierColumn);
+    });
+
+    // Save changes to localStorage for non-slider inputs
+    document.getElementById('folder').addEventListener('input', (e) => {
+        localStorage.setItem('folder', e.target.value);
+    });
+    document.getElementById('color').addEventListener('input', (e) => {
+        localStorage.setItem('color', e.target.value);
+    });
+    document.getElementById('maxFiles').addEventListener('input', (e) => {
+        localStorage.setItem('maxFiles', e.target.value);
+    });
+    document.getElementById('metric').addEventListener('change', (e) => {
+        localStorage.setItem('metric', e.target.value);
+    });
+
+    // Enable checkbox event listeners to update column borders and save state
+    enableDistance.addEventListener('change', function () {
+        updateColumnBorder(this, colorDistanceColumn);
+        localStorage.setItem('enableDistance', this.checked.toString());
+    });
+    enableClassify.addEventListener('change', function () {
+        updateColumnBorder(this, classifierColumn);
+        localStorage.setItem('enableClassify', this.checked.toString());
+    });
+
+    function updateColumnBorder(checkbox, column) {
+        if (checkbox.checked) {
+            column.classList.remove('disabled');
+            column.classList.add('enabled');
+        } else {
+            column.classList.remove('enabled');
+            column.classList.add('disabled');
+        }
+    }
+
+    // Sync slider pairs and save settings
+    thresholdNumber.addEventListener('input', () => {
+        thresholdRange.value = thresholdNumber.value;
+        localStorage.setItem('thresholdNumber', thresholdNumber.value);
+    });
+    thresholdRange.addEventListener('input', () => {
+        thresholdNumber.value = thresholdRange.value;
+        localStorage.setItem('thresholdNumber', thresholdNumber.value);
+    });
+
+    filterDistanceNumber.addEventListener('input', () => {
+        filterDistanceRange.value = filterDistanceNumber.value;
+        localStorage.setItem('filterDistanceNumber', filterDistanceNumber.value);
+        renderFilteredResults();
+    });
+    filterDistanceRange.addEventListener('input', () => {
+        filterDistanceNumber.value = filterDistanceRange.value;
+        localStorage.setItem('filterDistanceNumber', filterDistanceNumber.value);
+        renderFilteredResults();
+    });
+
+    filterClassNumber.addEventListener('input', () => {
+        filterCubRange.value = filterClassNumber.value;
+        localStorage.setItem('filterClassNumber', filterClassNumber.value);
+        renderFilteredResults();
+    });
+    filterCubRange.addEventListener('input', () => {
+        filterClassNumber.value = filterCubRange.value;
+        localStorage.setItem('filterClassNumber', filterClassNumber.value);
+        renderFilteredResults();
+    });
+
+    /**
+     * Processes a single SSE message line containing JSON data
+     * @param {string} line - JSON string from the server event
+     */
+    function processLine(line) {
+        if (!line.trim()) return;
+        try {
+            /** @type {Result} */
+            const result = JSON.parse(line);
+            allResults.push(result);
+
+            // Get current filter values (convert percentage inputs to decimals)
+            const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
+            const minFilter = parseFloat(filterClassNumber.value) / 100;
+
+            // Apply filter only if the corresponding property exists.
+            const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesClassFilter = result.prediction ? (result.prediction.cub >= minFilter) : true;
+
+            if (passesColorFilter && passesClassFilter) {
+                const itemDiv = createResultItem(result);
+                resultsDiv.appendChild(itemDiv);
+            }
+        } catch (e) {
+            console.error("Failed to parse line:", line, e);
+        }
+    }
+
+    /**
+     * Re-renders all results that pass the current filters
+     */
+    function renderFilteredResults() {
+        resultsDiv.innerHTML = '';
+        const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
+        const minFilter = parseFloat(filterClassNumber.value) / 100;
+        allResults.forEach(result => {
+            const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesCubFilter = result.prediction ? (result.prediction.cub >= minFilter) : true;
+            if (passesColorFilter && passesCubFilter) {
+                const itemDiv = createResultItem(result);
+                resultsDiv.appendChild(itemDiv);
+            }
+        });
+    }
+
+    /**
+     * Creates a DOM element representing a result item
+     * @param {Result} result - The result object to display
+     * @returns {HTMLDivElement} - The created result item element
+     */
+    function createResultItem(result) {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'result-item';
+
+        const img = document.createElement('img');
+        img.src = `/file/${encodeURIComponent(result.path)}`;
+        img.alt = result.path;
+        itemDiv.appendChild(img);
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'info';
+
+        // Build info content with optional checks.
+        let infoHTML = '';
+        if (result.color && typeof result.color.distance === 'number') {
+            const distancePercent = (result.color.distance * 100).toFixed(2);
+            infoHTML += `Color Distance: ${distancePercent}%<br>`;
+        }
+
+        if (result.prediction && typeof result.prediction.cub === 'number') {
+            const cubPercent = (result.prediction.cub * 100).toFixed(2);
+            infoHTML += `Cub: ${cubPercent}%`;
+        }
+        infoDiv.innerHTML = infoHTML;
+        itemDiv.appendChild(infoDiv);
+
+        // Only create the cub bar if prediction exists and has a valid cub value.
+        if (result.prediction && typeof result.prediction.cub === 'number') {
+            const barContainer = document.createElement('div');
+            barContainer.className = 'cub-bar';
+            const barInner = document.createElement('div');
+            barInner.className = 'cub-bar-inner';
+            const cubPercent = (result.prediction.cub * 100).toFixed(2);
+            barInner.style.width = `${result.prediction.cub * 100}%`;
+            barInner.textContent = `${cubPercent}%`;
+            barContainer.appendChild(barInner);
+            itemDiv.appendChild(barContainer);
+        }
+
+        return itemDiv;
+    }
+
+
+    // Handle form submission using server-sent events (SSE)
+    document.getElementById('colorForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        startButton.disabled = true;
+        const folder = document.getElementById('folder').value;
+        const color = document.getElementById('color').value;
+        // Convert threshold from percentage (number input) to a decimal.
+        const threshold = parseFloat(thresholdNumber.value) / 100;
+        const maxFiles = document.getElementById('maxFiles').value;
+        const metric = document.getElementById('metric').value;
+        // Clear previous results.
+        allResults.length = 0;
+        resultsDiv.innerHTML = '';
+
+
+        const params = {
+            folder,
+            color,
+            threshold,
+            max: maxFiles,
+            metric,
+            distance: enableDistance.checked,
+            classify: enableClassify.checked,
+        };
+
+        const queryString = Object.entries(params)
+            .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+            .join('&');
+
+        const path = `/walk?${queryString}`;
+
+        // Use EventSource to handle server-sent events.
+        source = new EventSource(path);
+        cancelButton.disabled = false;
+
+        source.onmessage = function (event) {
+            // Each event.data is expected to be a JSON string (without the "data:" prefix as it's automatically removed).
+            processLine(event.data);
+        };
+
+        source.onerror = function (err) {
+            console.error("EventSource failed: ", err);
+            source.close();
+            startButton.disabled = false;
+            cancelButton.disabled = true;
+        };
+    });
+
+    // Cancel button to close the SSE connection.
+    cancelButton.addEventListener('click', () => {
+        if (source) {
+            source.close();
+            startButton.disabled = false;
+            cancelButton.disabled = true;
+        }
+    });
+</script>
+</body>
+</html>
