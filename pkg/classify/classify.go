@@ -64,7 +64,7 @@ func PredictURL(ctx context.Context, path string) (Prediction, error) {
 	params := url.Values{
 		"url": {path},
 	}
-	requestURL := fmt.Sprintf("%s/predict?%s", predictURL, params.Encode())
+	requestURL := fmt.Sprintf("%s?%s", predictURL, params.Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, nil)
 	if err != nil {
 		return nil, err
