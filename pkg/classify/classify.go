@@ -4,20 +4,39 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
-	"jeffy/pkg/utils"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
+
+	"classifier/pkg/utils"
 )
 
 type Prediction map[string]float64
 
 var bodyPool = utils.NewPoolMake[*bytes.Buffer]()
 
-const predictURL = "http://localhost:7860/predict"
+var predictURL = "http://localhost:7860/predict"
+
+func init() {
+	predict := os.Getenv("PREDICT_URL")
+	if predict == "" {
+		return
+	}
+	if u, err := url.Parse(predict); err == nil {
+		predictURL = u.String()
+	}
+}
 
 func Predict(ctx context.Context, file io.ReadSeeker) (Prediction, error) {
 	body := bodyPool.Get()
@@ -35,7 +54,13 @@ func Predict(ctx context.Context, file io.ReadSeeker) (Prediction, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = io.Copy(part, file)
+	src, _, err := image.Decode(file)
+	if err != nil {
+		return nil, err
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, 640, 640))
+	draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
+	err = jpeg.Encode(part, dst, nil)
 	if err != nil {
 		return nil, err
 	}

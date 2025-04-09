@@ -1,13 +1,16 @@
-module jeffy
+module classifier
 
-go 1.24
+go 1.24.2
 
-require github.com/lucasb-eyer/go-colorful v1.2.0
+require (
+	github.com/charmbracelet/log v0.4.1
+	github.com/lucasb-eyer/go-colorful v1.2.0
+	golang.org/x/image v0.26.0
+)
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/lipgloss v1.0.0 // indirect
-	github.com/charmbracelet/log v0.4.1 // indirect
 	github.com/charmbracelet/x/ansi v0.4.2 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

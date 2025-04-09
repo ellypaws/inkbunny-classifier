@@ -15,19 +15,17 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/lucasb-eyer/go-colorful"
 
-	"jeffy/pkg/classify"
-	"jeffy/pkg/distance"
+	"classifier/pkg/classify"
+	"classifier/pkg/distance"
 )
 
 //go:embed index.html
 var index []byte
 
-// HomeHandler serves the main HTML page with a folder input and color wheel.
-func HomeHandler(w http.ResponseWriter, _ *http.Request) {
-	// The HTML page includes inline JS to send a GET request to /walk
-	// and then display streamed results.
+// HomeHandler serves the main HTML page
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(index)
+	http.ServeFile(w, r, "index.html")
 }
 
 func FileProxy(w http.ResponseWriter, r *http.Request) {

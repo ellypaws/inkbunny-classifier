@@ -3,10 +3,13 @@ package distance
 import (
 	"context"
 	"image"
+	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
 	"iter"
+
+	_ "golang.org/x/image/webp"
 
 	"github.com/charmbracelet/log"
 	"github.com/lucasb-eyer/go-colorful"

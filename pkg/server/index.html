@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Jeffy Finder</title>
+    <title>Classifier</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -130,7 +130,7 @@
             word-wrap: break-word;
         }
 
-        .jeffy-bar {
+        .cub-bar {
             background: #ddd;
             border-radius: 3px;
             overflow: hidden;
@@ -138,7 +138,7 @@
             margin-top: 0.5em;
         }
 
-        .jeffy-bar-inner {
+        .cub-bar-inner {
             height: 100%;
             text-align: center;
             line-height: 20px;
@@ -149,7 +149,7 @@
     </style>
 </head>
 <body>
-<h1>Jeffy Finder</h1>
+<h1>Cub Finder</h1>
 <form id="colorForm">
     <div class="general-settings">
         <label>
@@ -164,7 +164,7 @@
 
     <div class="columns">
         <!-- Color Distance Column -->
-        <div class="column enabled" id="colorDistanceColumn">
+        <div class="column enabled" id="colorDistanceColumn" hidden>
             <div class="column-header">
                 <label>
                     <input type="checkbox" id="enableDistance" checked> Enable Color Distance
@@ -209,10 +209,10 @@
                 </label>
             </div>
             <label>
-                Filter Minimum Jeffy (%):
+                Filter Minimum (%):
                 <div class="slider-container">
-                    <input type="number" id="filterJeffyNumber" step="0.1" min="0" max="100" value="0">
-                    <input type="range" id="filterJeffyRange" step="0.1" min="0" max="100" value="0">
+                    <input type="number" id="filterCubNumber" step="0.1" min="0" max="100" value="0">
+                    <input type="range" id="filterCubRange" step="0.1" min="0" max="100" value="0">
                 </div>
             </label>
         </div>
@@ -235,9 +235,9 @@
 
     /**
      * @typedef {Object} Prediction
-     * @property {number} jeffy - Probability score for "jeffy" class
-     * @property {number} jeffy_lineart - Probability score for "jeffy_lineart" class
-     * @property {number} not_jeffy - Probability score for "not_jeffy" class
+     * @property {number} cub ist - Probability score for "cub" class
+     * @property {number} anime - Probability score for "anime" class
+     * @property {number} adult - Probability score for "adult" class
      */
 
     /**
@@ -269,9 +269,9 @@
     /** @type {HTMLInputElement} */
     const filterDistanceRange = document.getElementById('filterDistanceRange');
     /** @type {HTMLInputElement} */
-    const filterJeffyNumber = document.getElementById('filterJeffyNumber');
+    const filterClassNumber = document.getElementById('filterCubNumber');
     /** @type {HTMLInputElement} */
-    const filterJeffyRange = document.getElementById('filterJeffyRange');
+    const filterCubRange = document.getElementById('filterCubRange');
     /** @type {HTMLInputElement} */
     const enableDistance = document.getElementById('enableDistance');
     /** @type {HTMLInputElement} */
@@ -314,14 +314,14 @@
         loadSetting('maxFiles', '500');
         loadSetting('metric', 'DistanceLab');
         loadSetting('filterDistanceNumber', '50');
-        loadSetting('filterJeffyNumber', '0');
+        loadSetting('filterClassNumber', '0');
         loadSetting('enableDistance', 'true');
         loadSetting('enableClassify', 'true');
 
         // Sync ranges with numbers
         thresholdRange.value = thresholdNumber.value;
         filterDistanceRange.value = filterDistanceNumber.value;
-        filterJeffyRange.value = filterJeffyNumber.value;
+        filterCubRange.value = filterClassNumber.value;
 
         // Update column borders based on initial checkbox states
         updateColumnBorder(enableDistance, colorDistanceColumn);
@@ -383,14 +383,14 @@
         renderFilteredResults();
     });
 
-    filterJeffyNumber.addEventListener('input', () => {
-        filterJeffyRange.value = filterJeffyNumber.value;
-        localStorage.setItem('filterJeffyNumber', filterJeffyNumber.value);
+    filterClassNumber.addEventListener('input', () => {
+        filterCubRange.value = filterClassNumber.value;
+        localStorage.setItem('filterClassNumber', filterClassNumber.value);
         renderFilteredResults();
     });
-    filterJeffyRange.addEventListener('input', () => {
-        filterJeffyNumber.value = filterJeffyRange.value;
-        localStorage.setItem('filterJeffyNumber', filterJeffyNumber.value);
+    filterCubRange.addEventListener('input', () => {
+        filterClassNumber.value = filterCubRange.value;
+        localStorage.setItem('filterClassNumber', filterClassNumber.value);
         renderFilteredResults();
     });
 
@@ -407,13 +407,13 @@
 
             // Get current filter values (convert percentage inputs to decimals)
             const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
-            const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
+            const minFilter = parseFloat(filterClassNumber.value) / 100;
 
             // Apply filter only if the corresponding property exists.
             const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
-            const passesJeffyFilter = result.prediction ? (result.prediction.jeffy >= minJeffy) : true;
+            const passesClassFilter = result.prediction ? (result.prediction.cub >= minFilter) : true;
 
-            if (passesColorFilter && passesJeffyFilter) {
+            if (passesColorFilter && passesClassFilter) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -428,11 +428,11 @@
     function renderFilteredResults() {
         resultsDiv.innerHTML = '';
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
-        const minJeffy = parseFloat(filterJeffyNumber.value) / 100;
+        const minFilter = parseFloat(filterClassNumber.value) / 100;
         allResults.forEach(result => {
             const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
-            const passesJeffyFilter = result.prediction ? (result.prediction.jeffy >= minJeffy) : true;
-            if (passesColorFilter && passesJeffyFilter) {
+            const passesCubFilter = result.prediction ? (result.prediction.cub >= minFilter) : true;
+            if (passesColorFilter && passesCubFilter) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -463,22 +463,22 @@
             infoHTML += `Color Distance: ${distancePercent}%<br>`;
         }
 
-        if (result.prediction && typeof result.prediction.jeffy === 'number') {
-            const jeffyPercent = (result.prediction.jeffy * 100).toFixed(2);
-            infoHTML += `Jeffy: ${jeffyPercent}%`;
+        if (result.prediction && typeof result.prediction.cub === 'number') {
+            const cubPercent = (result.prediction.cub * 100).toFixed(2);
+            infoHTML += `Cub: ${cubPercent}%`;
         }
         infoDiv.innerHTML = infoHTML;
         itemDiv.appendChild(infoDiv);
 
-        // Only create the jeffy bar if prediction exists and has a valid jeffy value.
-        if (result.prediction && typeof result.prediction.jeffy === 'number') {
+        // Only create the cub bar if prediction exists and has a valid cub value.
+        if (result.prediction && typeof result.prediction.cub === 'number') {
             const barContainer = document.createElement('div');
-            barContainer.className = 'jeffy-bar';
+            barContainer.className = 'cub-bar';
             const barInner = document.createElement('div');
-            barInner.className = 'jeffy-bar-inner';
-            const jeffyPercent = (result.prediction.jeffy * 100).toFixed(2);
-            barInner.style.width = `${result.prediction.jeffy * 100}%`;
-            barInner.textContent = `${jeffyPercent}%`;
+            barInner.className = 'cub-bar-inner';
+            const cubPercent = (result.prediction.cub * 100).toFixed(2);
+            barInner.style.width = `${result.prediction.cub * 100}%`;
+            barInner.textContent = `${cubPercent}%`;
             barContainer.appendChild(barInner);
             itemDiv.appendChild(barContainer);
         }

@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"jeffy/pkg/utils"
+	"classifier/pkg/utils"
 )
 
 var DefaultCache = &cache{

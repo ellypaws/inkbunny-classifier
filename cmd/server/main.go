@@ -8,8 +8,8 @@ import (
 
 	"github.com/charmbracelet/log"
 
-	"jeffy/pkg/classify"
-	"jeffy/pkg/server"
+	"classifier/pkg/classify"
+	"classifier/pkg/server"
 )
 
 func main() {
