@@ -38,7 +38,7 @@ func init() {
 	}
 }
 
-func Predict(ctx context.Context, file io.ReadSeeker) (Prediction, error) {
+func Predict(ctx context.Context, file io.Reader) (Prediction, error) {
 	body := bodyPool.Get()
 	body.Reset()
 	defer bodyPool.Put(body)
@@ -50,10 +50,6 @@ func Predict(ctx context.Context, file io.ReadSeeker) (Prediction, error) {
 		return nil, err
 	}
 
-	_, err = file.Seek(0, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
 	src, _, err := image.Decode(file)
 	if err != nil {
 		return nil, err
