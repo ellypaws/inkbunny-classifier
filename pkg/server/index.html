@@ -216,7 +216,7 @@
                 </label>
                 <label>
                     Refresh Rate (seconds):
-                    <input type="number" id="refreshRate" min="1" value="5">
+                    <input type="number" id="refreshRate" min="1" value="30">
                 </label>
                 <div class="actions">
                     <button type="button" id="startWatchButton">Start</button>
@@ -416,7 +416,7 @@
         // New settings for Watch Mode
         loadSetting('sid', '');
         loadSetting('encryptKey', '');
-        loadSetting('refreshRate', '5');
+        loadSetting('refreshRate', '30');
 
         // Sync slider pairs
         thresholdRange.value = thresholdNumber.value;
