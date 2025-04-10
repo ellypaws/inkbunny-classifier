@@ -481,7 +481,8 @@
     }
 
     /**
-     * Updates all filter rule dropdowns to include any new available classes.
+     * Updates each filter rule dropdown to include any new available classes,
+     * then updates dynamic styles for new class color rules.
      */
     function updateFilterClassOptions() {
         const rows = document.querySelectorAll('.filterRuleRow');
@@ -507,6 +508,42 @@
                 select.value = currentValue;
             } else if (currentValue === "custom") {
                 select.value = "custom";
+            }
+        });
+        updateDynamicStyles();
+    }
+
+    /**
+     * Retrieves a pastel color for the given prediction class.
+     * If already generated, returns the stored color.
+     * @param {string} key - The prediction class.
+     * @returns {string} A pastel color in HSL format.
+     */
+    function getClassColor(key) {
+        if (classColors[key]) return classColors[key];
+        // Generate a random pastel color using HSL (e.g., low saturation, high lightness)
+        const hue = Math.floor(Math.random() * 360);
+        const color = `hsl(${hue}, 70%, 85%)`;
+        classColors[key] = color;
+        return color;
+    }
+
+    /**
+     * Updates the dynamic CSS with rules for each available class.
+     * Creates rules for .class_<key> if they do not already exist.
+     */
+    function updateDynamicStyles() {
+        let styleEl = document.getElementById("dynamicClassStyles");
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'dynamicClassStyles';
+            document.head.appendChild(styleEl);
+        }
+        availableClasses.forEach((key) => {
+            if (!definedClasses.has(key)) {
+                const color = getClassColor(key);
+                styleEl.appendChild(document.createTextNode(`.class_${key} { background-color: ${color} !important; }\n`));
+                definedClasses.add(key);
             }
         });
     }
@@ -735,6 +772,8 @@
                 barContainer.className = 'result-bar';
                 const barInner = document.createElement('div');
                 barInner.className = 'result-bar-inner';
+                // Add dynamic class for this key so that its color is set via CSS
+                barInner.classList.add(`class_${key}`);
                 barInner.style.width = `${value * 100}%`;
                 barInner.textContent = `${(value * 100).toFixed(2)}% - ${key}`;
                 barContainer.appendChild(barInner);
