@@ -37,8 +37,12 @@
         }
 
         @keyframes fadeEffect {
-            from {opacity: 0;}
-            to {opacity: 1;}
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
         }
 
         form {
@@ -123,11 +127,11 @@
             margin-bottom: 1em;
             font-weight: bold;
         }
-        
+
         #colorDistanceColumn {
             animation: fadeEffect 2s;
         }
-        
+
         #classifierColumn {
             animation: fadeEffect 3s;
         }
@@ -352,8 +356,9 @@
     /**
      * @typedef {Object} Result
      * @property {string} path - File path to the image
-     * @property {ColorResult} [color] - Color comparison results, if enabled
-     * @property {Prediction} [prediction] - Classification prediction results, if enabled
+     * @property {string?} url - URL to the image
+     * @property {ColorResult?} [color] - Color comparison results, if enabled
+     * @property {Prediction?} [prediction] - Classification prediction results, if enabled
      */
 
     // Global variables
@@ -975,8 +980,15 @@
 
         const img = document.createElement('img');
         img.src = `${serverURL}/file/${encodeURIComponent(result.path)}`;
-        img.alt = result.path;
-        itemDiv.appendChild(img);
+        if (result.url) {
+            const anchor = document.createElement('a');
+            anchor.href = result.url
+            anchor.target = '_blank';
+            itemDiv.appendChild(anchor);
+            anchor.appendChild(img);
+        } else {
+            itemDiv.appendChild(img);
+        }
 
         const infoDiv = document.createElement('div');
         infoDiv.className = 'info';

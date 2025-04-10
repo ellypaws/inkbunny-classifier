@@ -77,6 +77,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			}
 			yield(Result{
 				Path:       submission.FileURLFull,
+				URL:        fmt.Sprintf("https://inkbunny.net/s/%s", submission.SubmissionID),
 				Prediction: &prediction,
 			})
 		}
