@@ -21,6 +21,7 @@ func main() {
 	go classify.WalkDir(ctx, os.Getenv("READ_DIR"), results, classify.Config{
 		Enabled: true,
 		Max:     50000,
+		Skipper: targetExists,
 	})
 
 Polling:
@@ -32,7 +33,7 @@ Polling:
 				break Polling
 			}
 			if class := (*r.Prediction)[os.Getenv("CLASS")]; class >= 0.85 {
-				filePath := filepath.Join(os.Getenv("WRITE_DIR"), strings.TrimPrefix(r.Path, os.Getenv("READ_DIR")))
+				filePath := target(r.Path)
 				if fileExists(filePath) {
 					log.Printf("File %s already exists", filePath)
 					continue
@@ -71,6 +72,14 @@ Polling:
 	}
 
 	log.Info("Exiting")
+}
+
+func target(path string) string {
+	return filepath.Join(os.Getenv("WRITE_DIR"), strings.TrimPrefix(path, os.Getenv("READ_DIR")))
+}
+
+func targetExists(path string) bool {
+	return fileExists(target(path))
 }
 
 func fileExists(path string) bool {
