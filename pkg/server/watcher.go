@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -53,7 +54,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 
 			log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
 
-			file, err := downloadFile(submission.FileURLFull, filepath.Join("inkbunny", submission.Username), crypto)
+			file, err := downloadFile(r.Context(), submission.FileURLFull, filepath.Join("inkbunny", submission.Username), crypto)
 			if err != nil {
 				log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 				continue
@@ -161,13 +162,18 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 
 var client = http.Client{Timeout: 30 * time.Second}
 
-func downloadFile(path, folder string, crypto *utils.Crypto) (io.ReadCloser, error) {
+func downloadFile(ctx context.Context, path, folder string, crypto *utils.Crypto) (io.ReadCloser, error) {
 	u, err := url.Parse(path)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing URL: %w", err)
 	}
 
-	resp, err := client.Get(path)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error downloading file: %w", err)
 	}
