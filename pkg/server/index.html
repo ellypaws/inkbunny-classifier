@@ -49,6 +49,10 @@
             margin-bottom: 1em;
         }
 
+        .general-settings {
+            margin-bottom: 1em;
+        }
+
         .slider-container {
             display: flex;
             align-items: center;
@@ -89,6 +93,7 @@
         }
 
         .columns {
+            min-width: max-content;
             display: flex;
             gap: 1em;
         }
@@ -160,7 +165,7 @@
             line-height: 20px;
             background: #007bff;
             color: white;
-            width: 0%;
+            width: 0;
         }
 
         #filterRulesTable, #filterRulesTable th, #filterRulesTable td {
@@ -291,7 +296,10 @@
             </div>
 
             <div id="filterRulesSection">
-                <h2>Filter Rules</h2>
+                <label>
+                    <span id="filterCount">(0/0)</span>
+                    <input type="checkbox" id="enableFilters" checked> Enable filters
+                </label>
                 <button type="button" id="addFilterRule">Add Filter</button>
                 <button type="button" id="pruneButton" disabled>Prune</button>
                 <table id="filterRulesTable">
@@ -369,6 +377,8 @@
     const enableDistance = document.getElementById('enableDistance');
     /** @type {HTMLInputElement} */
     const enableClassify = document.getElementById('enableClassify');
+    const enableFiltersCheckbox = document.getElementById('enableFilters');
+    const filterCountSpan = document.getElementById('filterCount');
 
     /** @type {HTMLElement} */
     const colorDistanceColumn = document.getElementById('colorDistanceColumn');
@@ -388,6 +398,10 @@
      */
     function loadSetting(id, defaultValue) {
         const el = document.getElementById(id);
+        if (!el) {
+            console.warn(`Element with ID ${id} not found.`);
+            return
+        }
         const stored = localStorage.getItem(id);
         if (stored !== null) {
             if (el.type === 'checkbox') {
@@ -412,11 +426,13 @@
         loadSetting('maxFiles', '500');
         loadSetting('metric', 'DistanceLab');
         loadSetting('filterDistanceNumber', '50');
+        loadSetting('globalMinFilterNumber', '50');
+
         loadSetting('enableDistance', 'false');
         loadSetting('enableClassify', 'true');
         loadSetting('enableGlobalMin', 'true');
-        loadSetting('globalMinFilterNumber', '50');
-        // New settings for Watch Mode
+        loadSetting('enableFilters', 'true');
+
         loadSetting('sid', '');
         loadSetting('encryptKey', '');
         loadSetting('refreshRate', '30');
@@ -489,11 +505,14 @@
         updateColumnBorder(this, classifierColumn);
         localStorage.setItem('enableClassify', this.checked.toString());
     });
-
     enableGlobalMin.addEventListener('change', () => {
         localStorage.setItem('enableGlobalMin', enableGlobalMin.checked.toString());
         renderFilteredResults();
     });
+    enableFiltersCheckbox.addEventListener('change', (e) => {
+        localStorage.setItem('enableFilters', e.target.checked.toString());
+        renderFilteredResults();
+    })
 
     function updateColumnBorder(checkbox, column) {
         if (checkbox.checked) {
@@ -913,14 +932,18 @@
     function renderFilteredResults() {
         resultsDiv.innerHTML = '';
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
+        let passCount = 0;
         allResults.forEach((result) => {
             const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
             const passesFilters = evaluateFilterRules(result);
-            if (passesColor && passesFilters) {
+            const passes = enableFiltersCheckbox.checked ? (passesColor && passesFilters) : true;
+            if (passes) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.insertBefore(itemDiv, resultsDiv.firstChild);
+                passCount++;
             }
         });
+        filterCountSpan.textContent = `(${passCount}/${allResults.length})`;
     }
 
     /**
@@ -994,6 +1017,10 @@
                 barContainer.appendChild(barInner);
                 itemDiv.appendChild(barContainer);
             });
+
+            // Highlight result item with top class
+            const topKey = sortedKeys[0];
+            itemDiv.style.outline = `1px solid ${getClassColor(topKey)}`;
         }
         return itemDiv;
     }
