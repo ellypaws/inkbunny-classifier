@@ -70,9 +70,15 @@ func WalkDir(ctx context.Context, root string, results chan<- Result, config Con
 			if !config.Enabled {
 				return
 			}
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			prediction, err := DefaultCache.Predict(ctx, path, file)
 			select {
 			case <-ctx.Done():
+				return
 			default:
 				if err != nil {
 					log.Error("Error classifying", "path", path, "err", err)
@@ -85,7 +91,11 @@ func WalkDir(ctx context.Context, root string, results chan<- Result, config Con
 			if result.Prediction != nil {
 				results <- result
 			} else {
-				log.Warn("No results found", "path", path)
+				select {
+				case <-ctx.Done():
+				default:
+					log.Warn("No results found", "path", path)
+				}
 			}
 			file.Close()
 			wg.Done()

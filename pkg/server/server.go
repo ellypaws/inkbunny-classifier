@@ -243,9 +243,15 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			if !classifyConfig.enabled {
 				return
 			}
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			prediction, err := classify.DefaultCache.Predict(ctx, path, file)
 			select {
 			case <-ctx.Done():
+				return
 			default:
 				if err != nil {
 					log.Error("Error classifying", "path", path, "err", err)
@@ -261,7 +267,11 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			if result.Prediction != nil || result.Color != nil {
 				results <- result
 			} else {
-				log.Warn("No results found", "path", path)
+				select {
+				case <-ctx.Done():
+				default:
+					log.Warn("No results found", "path", path)
+				}
 			}
 			file.Close()
 			wg.Done()
