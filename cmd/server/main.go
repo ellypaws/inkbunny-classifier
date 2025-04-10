@@ -18,7 +18,9 @@ func main() {
 	http.HandleFunc("GET /walk", server.WalkHandler)
 	http.HandleFunc("GET /file/{path}", server.FileProxy)
 
-	classify.DefaultCache.Load("classifications.json")
+	if os.Getenv("SKIP_LOAD") != "true" {
+		classify.DefaultCache.Load("classifications.json")
+	}
 	defer classify.DefaultCache.Save("classifications.json")
 
 	log.Default().SetLevel(log.DebugLevel)
