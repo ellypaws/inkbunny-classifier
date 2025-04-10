@@ -253,6 +253,8 @@
 <div id="results"></div>
 
 <script>
+    const serverURL = window.location.origin;
+    
     /**
      * @typedef {Object} ColorResult
      * @property {boolean} found - Whether the target color was found within threshold
@@ -704,7 +706,7 @@
         itemDiv.className = 'result-item';
 
         const img = document.createElement('img');
-        img.src = `/file/${encodeURIComponent(result.path)}`;
+        img.src = `${serverURL}/file/${encodeURIComponent(result.path)}`;
         img.alt = result.path;
         itemDiv.appendChild(img);
 
@@ -771,7 +773,7 @@
             .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
             .join('&');
 
-        const path = `/walk?${queryString}`;
+        const path = `${serverURL}/walk?${queryString}`;
 
         // Use EventSource to handle server-sent events.
         source = new EventSource(path);
