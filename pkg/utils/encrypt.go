@@ -22,6 +22,9 @@ type Crypto struct {
 
 // NewCrypto initializes a new Crypto instance using the provided key.
 func NewCrypto(key string) (*Crypto, error) {
+	if key == "" {
+		return &Crypto{key: key}, nil
+	}
 	derivedKey := deriveKey(key)
 	block, err := aes.NewCipher(derivedKey)
 	if err != nil {
@@ -53,6 +56,9 @@ func (cw *cipherWriter) Write(p []byte) (int, error) {
 // Encoder wraps an io.Writer into an encrypting writer. It writes a random IV
 // (initialization vector) as a prefix to the output so that the Decoder can decrypt.
 func (c *Crypto) Encoder(w io.Writer) (io.Writer, error) {
+	if c.key == "" {
+		return w, nil
+	}
 	iv := make([]byte, aes.BlockSize)
 	// Generate a random IV.
 	if _, err := rand.Read(iv); err != nil {
@@ -89,6 +95,9 @@ func (cr *cipherReader) Read(p []byte) (int, error) {
 // Decoder wraps an io.Reader so that the data is decrypted on the fly.
 // It expects the first aes.BlockSize bytes from the reader to be the IV.
 func (c *Crypto) Decoder(r io.Reader) (io.Reader, error) {
+	if c.key == "" {
+		return r, nil
+	}
 	iv := make([]byte, aes.BlockSize)
 	// Read the IV from the beginning of the stream.
 	if _, err := io.ReadFull(r, iv); err != nil {
