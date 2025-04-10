@@ -35,19 +35,19 @@ Polling:
 			if class := (*r.Prediction)[os.Getenv("CLASS")]; class >= 0.85 {
 				filePath := target(r.Path)
 				if fileExists(filePath) {
-					log.Printf("File %s already exists", filePath)
+					log.Warnf("File %s already exists", filePath)
 					continue
 				}
 
 				folder := filepath.Dir(filePath)
 				err := os.MkdirAll(folder, 0755)
 				if err != nil {
-					log.Printf("Error creating folder %s, %v", folder, err)
+					log.Errorf("Error creating folder %s, %v", folder, err)
 				}
 
 				source, err := os.Open(r.Path)
 				if err != nil {
-					log.Printf("Error opening file %s, %v", r.Path, err)
+					log.Errorf("Error opening file %s, %v", r.Path, err)
 					continue
 				}
 				defer source.Close()
@@ -61,10 +61,10 @@ Polling:
 
 				written, err := io.Copy(f, source)
 				if err != nil {
-					log.Printf("Error writing file %s, %v", filePath, err)
+					log.Errorf("Error writing file %s, %v", filePath, err)
 					continue
 				}
-				log.Printf("File %s created [%d bytes]", filePath, written)
+				log.Infof("File %s created [%d bytes]", filePath, written)
 			}
 		case <-ctx.Done():
 			break Polling
