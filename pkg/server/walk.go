@@ -75,20 +75,19 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make(chan Result)
-	go func() {
-		walkDir(r.Context(), folder, maxFiles, results,
-			distanceConfig{
-				enabled:   shouldGetDistance,
-				target:    target,
-				metric:    metric,
-				threshold: threshold,
-				semaphore: make(chan struct{}, runtime.NumCPU()),
-			},
-			classifyConfig{
-				enabled:   shouldClassify,
-				semaphore: make(chan struct{}, runtime.NumCPU()*2),
-			})
-	}()
+	go walkDir(r.Context(), folder, maxFiles, results,
+		distanceConfig{
+			enabled:   shouldGetDistance,
+			target:    target,
+			metric:    metric,
+			threshold: threshold,
+			semaphore: make(chan struct{}, runtime.NumCPU()),
+		},
+		classifyConfig{
+			enabled:   shouldClassify,
+			semaphore: make(chan struct{}, runtime.NumCPU()*2),
+		},
+	)
 
 	enc := json.NewEncoder(w)
 	if flusher, ok := w.(http.Flusher); ok {
@@ -139,6 +138,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 
 type Result struct {
 	Path       string               `json:"path"`
+	URL        string               `json:"url,omitempty"`
 	Color      *distance.Distance   `json:"color,omitempty"`
 	Prediction *classify.Prediction `json:"prediction,omitempty"`
 }
