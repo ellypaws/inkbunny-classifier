@@ -72,10 +72,10 @@ func (p *WorkerPool[_, R]) do() {
 func (p *WorkerPool[J, _]) Add(j ...J) {
 	for _, j := range j {
 		select {
-		case p.jobs <- j:
-			continue
 		case <-p.closing:
 			return
+		default:
+			p.jobs <- j
 		}
 	}
 }
@@ -84,10 +84,10 @@ func (p *WorkerPool[J, _]) Add(j ...J) {
 func (p *WorkerPool[J, _]) AddIter(j iter.Seq[J]) {
 	for j := range j {
 		select {
-		case p.jobs <- j:
-			continue
 		case <-p.closing:
 			return
+		default:
+			p.jobs <- j
 		}
 	}
 }
@@ -97,10 +97,10 @@ func (p *WorkerPool[J, _]) AddAndClose(j ...J) {
 	go func() {
 		for _, j := range j {
 			select {
-			case p.jobs <- j:
-				continue
 			case <-p.closing:
 				return
+			default:
+				p.jobs <- j
 			}
 		}
 		p.Close()
@@ -111,7 +111,12 @@ func (p *WorkerPool[J, _]) AddAndClose(j ...J) {
 func (p *WorkerPool[J, _]) AddAndCloseIter(j iter.Seq[J]) {
 	go func() {
 		for j := range j {
-			p.jobs <- j
+			select {
+			case <-p.closing:
+				return
+			default:
+				p.jobs <- j
+			}
 		}
 		p.Close()
 	}()
