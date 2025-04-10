@@ -12,6 +12,27 @@
 
         h1 {
             color: #333;
+            text-align: center;
+        }
+
+        .tab-bar .tab {
+            transform: translateY(1px);
+            border-radius: 3px 3px 0 0;
+            background: #e0e0e0;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            padding: 0.5em 1em;
+            cursor: pointer;
+        }
+
+        .tab-bar .tab.active {
+            background: white;
+            color: black;
+        }
+
+        #tab-content {
+            max-width: 600px;
+            margin: 0 auto;
         }
 
         form {
@@ -19,7 +40,7 @@
             padding: 1em;
             background: #fff;
             border: 1px solid #ccc;
-            border-radius: 5px;
+            border-radius: 0 5px 5px 5px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
@@ -65,28 +86,6 @@
             background: #ccc;
             cursor: not-allowed;
             pointer-events: all !important;
-        }
-
-        .general-settings {
-            margin-bottom: 1em;
-            padding: 1em;
-            background: #fff;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-
-        .mode-settings {
-            display: flex;
-            gap: 1em;
-            margin-bottom: 1em;
-        }
-
-        .mode-column {
-            flex: 1;
-            padding: 1em;
-            background: #fff;
-            border: 1px solid #ccc;
-            border-radius: 5px;
         }
 
         .columns {
@@ -184,12 +183,15 @@
 </head>
 <body>
 <h1>Cub Finder</h1>
-<form id="colorForm">
-    <div class="general-settings">
-        <div class="mode-settings">
-            <!-- Local Files Column -->
-            <div class="mode-column" id="localFiles">
-                <h2>Local Files</h2>
+<div class="general-settings">
+    <div id="tab-content">
+        <div class="tab-bar">
+            <button class="tab" id="localTab">Local Files</button>
+            <button class="tab active" id="watchTab">Watch Mode</button>
+        </div>
+        <!-- Local Files Content -->
+        <div id="localContent" style="display: none;">
+            <form id="localForm">
                 <label>
                     Folder Path:
                     <input type="text" id="folder" placeholder="/path/to/images" required>
@@ -202,27 +204,29 @@
                     <button type="submit" id="startButton">Start</button>
                     <button type="button" id="cancelBtn" disabled>Cancel</button>
                 </div>
-            </div>
-            <!-- Watch Mode Column -->
-            <div class="mode-column" id="watchMode">
-                <h2>Watch Mode</h2>
+            </form>
+        </div>
+
+        <!-- Watch Mode Content -->
+        <div id="watchContent">
+            <form id="watchForm">
                 <label>
                     SID:
                     <input type="password" id="sid" placeholder="Session ID" required>
                 </label>
                 <label>
                     Encryption Key:
-                    <input type="password" id="encryptKey" placeholder="Encryption Key" required>
+                    <input type="password" id="encryptKey" placeholder="Encryption Key">
                 </label>
                 <label>
                     Refresh Rate (seconds):
                     <input type="number" id="refreshRate" min="1" value="30">
                 </label>
                 <div class="actions">
-                    <button type="button" id="startWatchButton">Start</button>
+                    <button type="submit" id="startWatchButton">Start</button>
                     <button type="button" id="cancelWatchBtn" disabled>Cancel</button>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -272,7 +276,6 @@
                     <input type="checkbox" id="enableClassify" checked> Enable Classification
                 </label>
             </div>
-
             <!-- Global Minimum Filter Section -->
             <div id="globalMinFilterSection">
                 <label>
@@ -305,7 +308,7 @@
             </div>
         </div>
     </div>
-</form>
+</div>
 
 <div id="results"></div>
 
@@ -423,6 +426,9 @@
         filterDistanceRange.value = filterDistanceNumber.value;
         globalMinFilterRange.value = globalMinFilterNumber.value;
 
+        // Load active tab
+        localStorage.getItem('activeTab') === 'local' ? switchTab('local') : switchTab('watch');
+
         // Update column borders based on checkbox states
         updateColumnBorder(enableDistance, colorDistanceColumn);
         updateColumnBorder(enableClassify, classifierColumn);
@@ -430,6 +436,25 @@
         // Load saved filter rules from localStorage
         loadFilterRules();
     });
+
+    function switchTab(tabName) {
+        if (tabName === 'local') {
+            document.getElementById('localContent').style.display = 'block';
+            document.getElementById('watchContent').style.display = 'none';
+            document.getElementById('localTab').classList.add('active');
+            document.getElementById('watchTab').classList.remove('active');
+            localStorage.setItem('activeTab', 'local');
+        } else if (tabName === 'watch') {
+            document.getElementById('localContent').style.display = 'none';
+            document.getElementById('watchContent').style.display = 'block';
+            document.getElementById('localTab').classList.remove('active');
+            document.getElementById('watchTab').classList.add('active');
+            localStorage.setItem('activeTab', 'watch');
+        }
+    }
+
+    document.getElementById('localTab').addEventListener('click', () => switchTab('local'));
+    document.getElementById('watchTab').addEventListener('click', () => switchTab('watch'));
 
     // Save changes to localStorage for non-slider inputs
     document.getElementById('folder').addEventListener('input', (e) => {
@@ -970,7 +995,7 @@
     }
 
     // Handle Local Files form submission using server-sent events (SSE)
-    document.getElementById('colorForm').addEventListener('submit', function (e) {
+    document.getElementById('localForm').addEventListener('submit', function (e) {
         e.preventDefault();
         const folder = document.getElementById('folder').value;
         const color = document.getElementById('color').value;
@@ -1002,7 +1027,8 @@
     });
 
     // Handle Watch Mode start button click
-    startWatchButton.addEventListener('click', () => {
+    document.getElementById('watchForm').addEventListener('submit', (e) => {
+        e.preventDefault();
         const sid = document.getElementById('sid').value;
         const encryptKey = document.getElementById('encryptKey').value;
         const refreshRate = document.getElementById('refreshRate').value;
