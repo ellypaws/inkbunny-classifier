@@ -150,7 +150,18 @@
         #filterRulesTable, #filterRulesTable th, #filterRulesTable td {
             border: 1px solid #ccc;
             border-collapse: collapse;
+            margin-top: 5px;
             padding: 5px;
+        }
+        
+        #pruneButton {
+            background: #f16767;
+        }
+        
+        #pruneButton:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            pointer-events: all !important;
         }
     </style>
 </head>
@@ -217,6 +228,7 @@
             <div id="filterRulesSection">
                 <h2>Filter Rules</h2>
                 <button type="button" id="addFilterRule">Add Filter</button>
+                <button type="button" id="pruneButton" disabled>Prune</button>
                 <table id="filterRulesTable">
                     <thead>
                     <tr>
@@ -228,7 +240,6 @@
                     </thead>
                     <tbody></tbody>
                 </table>
-                <button type="button" id="pruneButton">Prune</button>
             </div>
         </div>
     </div>
