@@ -281,8 +281,8 @@
                 <label>
                     Global Minimum Filter (%):
                     <div class="slider-container">
-                        <input type="number" id="globalMinFilterNumber" step="0.1" min="0" max="100" value="0">
-                        <input type="range" id="globalMinFilterRange" step="0.1" min="0" max="100" value="0">
+                        <input type="number" id="globalMinFilterNumber" step="0.1" min="0" max="100" value="50">
+                        <input type="range" id="globalMinFilterRange" step="0.1" min="0" max="100" value="50">
                     </div>
                 </label>
             </div>
@@ -411,8 +411,8 @@
         loadSetting('filterDistanceNumber', '50');
         loadSetting('enableDistance', 'false');
         loadSetting('enableClassify', 'true');
-        loadSetting('enableGlobalMin', 'false');
-        loadSetting('globalMinFilterNumber', '0');
+        loadSetting('enableGlobalMin', 'true');
+        loadSetting('globalMinFilterNumber', '50');
         // New settings for Watch Mode
         loadSetting('sid', '');
         loadSetting('encryptKey', '');
