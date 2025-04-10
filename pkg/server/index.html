@@ -513,15 +513,31 @@
         renderFilteredResults();
     });
 
+    // Helper function to re-enable both start buttons and disable cancel buttons.
+    function resetModeButtons() {
+        startButton.disabled = false;
+        startWatchButton.disabled = false;
+        cancelButton.disabled = true;
+        cancelWatchButton.disabled = true;
+    }
+
     /**
      * Helper function to start an EventSource stream.
      * @param {string} url - The URL to fetch.
-     * @param {HTMLButtonElement} startBtn - The start button (to disable while running).
-     * @param {HTMLButtonElement} cancelBtn - The cancel button.
+     * @param {HTMLButtonElement} startBtn - The start button for the current mode (to disable while running).
+     * @param {HTMLButtonElement} cancelBtn - The cancel button for the current mode.
      * @returns {EventSource} The created EventSource instance.
      */
     function startStream(url, startBtn, cancelBtn) {
+        // Disable the current mode's start button.
         startBtn.disabled = true;
+        // Disable the other mode's start button as well.
+        if (startBtn === startButton) {
+            startWatchButton.disabled = true;
+        } else if (startBtn === startWatchButton) {
+            startButton.disabled = true;
+        }
+
         // Clear previous results.
         allResults.length = 0;
         resultsDiv.innerHTML = '';
@@ -533,8 +549,8 @@
         evtSource.onerror = function (err) {
             console.error("EventSource failed: ", err);
             evtSource.close();
-            startBtn.disabled = false;
-            cancelBtn.disabled = true;
+            // Re-enable both start buttons when the stream ends due to an error.
+            resetModeButtons();
         };
         return evtSource;
     }
@@ -970,8 +986,7 @@
     cancelButton.addEventListener('click', () => {
         if (source) {
             source.close();
-            startButton.disabled = false;
-            cancelButton.disabled = true;
+            resetModeButtons();
         }
     });
 
@@ -990,8 +1005,7 @@
     cancelWatchButton.addEventListener('click', () => {
         if (watchSource) {
             watchSource.close();
-            startWatchButton.disabled = false;
-            cancelWatchButton.disabled = true;
+            resetModeButtons();
         }
     });
 </script>
