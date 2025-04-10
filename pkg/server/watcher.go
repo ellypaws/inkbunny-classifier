@@ -71,8 +71,12 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			mu.Lock()
 			readSubs[submission.SubmissionID] = prediction
 			mu.Unlock()
+
+			if encryptKey != "" {
+				submission.FileURLFull = fmt.Sprintf("%s?decrypt_key=%s", submission.FileURLFull, encryptKey)
+			}
 			yield(Result{
-				Path:       fmt.Sprintf("%s?decrypt_key=%s", submission.FileURLFull, encryptKey),
+				Path:       submission.FileURLFull,
 				Prediction: &prediction,
 			})
 		}
