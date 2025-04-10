@@ -18,14 +18,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	results := make(chan classify.Result)
-	go func() {
-		classify.WalkDir(ctx, os.Getenv("READ_DIR"), results, classify.Config{
-			Enabled: true,
-			Max:     50000,
-			Skipper: fileExists,
-		})
-		close(results)
-	}()
+	go classify.WalkDir(ctx, os.Getenv("READ_DIR"), results, classify.Config{
+		Enabled: true,
+		Max:     50000,
+	})
 
 Polling:
 	for {
@@ -73,6 +69,8 @@ Polling:
 			break Polling
 		}
 	}
+
+	log.Info("Exiting")
 }
 
 func fileExists(path string) bool {
