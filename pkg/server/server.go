@@ -41,10 +41,6 @@ func serveEncryptedFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path not found", http.StatusNotFound)
 		return
 	}
-	if decryptKey == "" {
-		http.Error(w, "decrypt key not found", http.StatusNotFound)
-		return
-	}
 
 	crypto, err := utils.NewCrypto(decryptKey)
 	if err != nil {
