@@ -659,25 +659,31 @@
         rows.forEach((row) => {
             const select = row.querySelector('.filterClass');
             const currentValue = select.value;
-            // Clear existing options
+            // If the current value is not "custom" and is missing from availableClasses, add it.
+            if (currentValue !== "custom" && !availableClasses.has(currentValue)) {
+                availableClasses.add(currentValue);
+            }
+            // Clear the dropdown options.
             select.innerHTML = "";
-            // Create options from availableClasses, sorted alphabetically
+            // Populate with current available classes.
             Array.from(availableClasses).sort().forEach((cl) => {
                 const option = document.createElement('option');
                 option.value = cl;
                 option.text = cl;
                 select.appendChild(option);
             });
-            // Always add the custom option at the end
+            // Always add the "custom" option at the end.
             const customOption = document.createElement('option');
             customOption.value = 'custom';
             customOption.text = 'custom';
             select.appendChild(customOption);
-            // Restore previous selection if possible
-            if (Array.from(availableClasses).includes(currentValue)) {
+            // Restore previous selection.
+            if (currentValue === 'custom') {
+                select.value = 'custom';
+            } else if (availableClasses.has(currentValue)) {
                 select.value = currentValue;
-            } else if (currentValue === "custom") {
-                select.value = "custom";
+            } else {
+                select.value = 'custom';
             }
         });
         updateDynamicStyles();
@@ -752,20 +758,45 @@
         const classCell = document.createElement('td');
         const classSelect = document.createElement('select');
         classSelect.classList.add('filterClass');
-        // Populate with current available classes
+
+        // If a rule was saved with a class that isn’t in availableClasses (and isn’t "custom"), add it.
+        if (ruleData && ruleData.selectedClass && ruleData.selectedClass !== "custom") {
+            if (!availableClasses.has(ruleData.selectedClass)) {
+                availableClasses.add(ruleData.selectedClass);
+            }
+        }
+
+        // Populate the dropdown with available classes
         Array.from(availableClasses).sort().forEach((cl) => {
             const option = document.createElement('option');
             option.value = cl;
             option.text = cl;
             classSelect.appendChild(option);
         });
-        // Add custom option
+        // Always add the "custom" option at the end
         const customOption = document.createElement('option');
         customOption.value = 'custom';
         customOption.text = 'custom';
         classSelect.appendChild(customOption);
+
+        // Create the custom input field for custom classes.
+        const customInput = document.createElement('input');
+        customInput.type = 'text';
+        customInput.placeholder = 'Custom class';
+        customInput.classList.add('customInput');
+
+        // Determine the correct selection based on saved data.
         if (ruleData && ruleData.selectedClass) {
-            classSelect.value = ruleData.selectedClass;
+            if (ruleData.selectedClass === "custom") {
+                classSelect.value = "custom";
+                customInput.style.display = 'inline';
+                customInput.value = ruleData.customValue || "";
+            } else {
+                classSelect.value = ruleData.selectedClass;
+                customInput.style.display = 'none';
+            }
+        } else {
+            customInput.style.display = 'none';
         }
         classSelect.addEventListener('change', function () {
             if (this.value === 'custom') {
@@ -776,17 +807,6 @@
             saveFilterRules();
         });
         classCell.appendChild(classSelect);
-
-        const customInput = document.createElement('input');
-        customInput.type = 'text';
-        customInput.placeholder = 'Custom class';
-        customInput.classList.add('customInput');
-        customInput.style.display =
-            ruleData && ruleData.selectedClass === 'custom' ? 'inline' : 'none';
-        if (ruleData && ruleData.customValue) {
-            customInput.value = ruleData.customValue;
-        }
-        customInput.addEventListener('input', saveFilterRules);
         classCell.appendChild(customInput);
         row.appendChild(classCell);
 
