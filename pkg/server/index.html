@@ -124,13 +124,13 @@
             margin-bottom: 0.5em;
         }
 
-        .result-item .info {
+        .info {
             font-size: 0.9em;
             color: #333;
             word-wrap: break-word;
         }
 
-        .cub-bar {
+        .result-bar {
             background: #ddd;
             border-radius: 3px;
             overflow: hidden;
@@ -138,13 +138,19 @@
             margin-top: 0.5em;
         }
 
-        .cub-bar-inner {
+        .result-bar-inner {
             height: 100%;
             text-align: center;
             line-height: 20px;
             background: #007bff;
             color: white;
             width: 0%;
+        }
+
+        #filterRulesTable, #filterRulesTable th, #filterRulesTable td {
+            border: 1px solid #ccc;
+            border-collapse: collapse;
+            padding: 5px;
         }
     </style>
 </head>
@@ -167,7 +173,7 @@
         <div class="column enabled" id="colorDistanceColumn" hidden>
             <div class="column-header">
                 <label>
-                    <input type="checkbox" id="enableDistance" checked> Enable Color Distance
+                    <input type="checkbox" id="enableDistance"> Enable Color Distance
                 </label>
             </div>
             <label>
@@ -208,13 +214,22 @@
                     <input type="checkbox" id="enableClassify" checked> Enable Classification
                 </label>
             </div>
-            <label>
-                Filter Minimum (%):
-                <div class="slider-container">
-                    <input type="number" id="filterCubNumber" step="0.1" min="0" max="100" value="0">
-                    <input type="range" id="filterCubRange" step="0.1" min="0" max="100" value="0">
-                </div>
-            </label>
+            <div id="filterRulesSection">
+                <h2>Filter Rules</h2>
+                <button type="button" id="addFilterRule">Add Filter</button>
+                <table id="filterRulesTable">
+                    <thead>
+                    <tr>
+                        <th>Condition</th>
+                        <th>Class</th>
+                        <th>Min Filter (%)</th>
+                        <th>Action</th>
+                    </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <button type="button" id="pruneButton">Prune</button>
+            </div>
         </div>
     </div>
 
@@ -235,9 +250,7 @@
 
     /**
      * @typedef {Object} Prediction
-     * @property {number} cub ist - Probability score for "cub" class
-     * @property {number} anime - Probability score for "anime" class
-     * @property {number} adult - Probability score for "adult" class
+     * A mapping of prediction classes (keys) to their probability scores.
      */
 
     /**
@@ -268,25 +281,25 @@
     const filterDistanceNumber = document.getElementById('filterDistanceNumber');
     /** @type {HTMLInputElement} */
     const filterDistanceRange = document.getElementById('filterDistanceRange');
-    /** @type {HTMLInputElement} */
-    const filterClassNumber = document.getElementById('filterCubNumber');
-    /** @type {HTMLInputElement} */
-    const filterCubRange = document.getElementById('filterCubRange');
-    /** @type {HTMLInputElement} */
+
+    // Checkboxes
     const enableDistance = document.getElementById('enableDistance');
     /** @type {HTMLInputElement} */
     const enableClassify = document.getElementById('enableClassify');
-    
-    
+
+
     /** @type {HTMLElement} */
     const colorDistanceColumn = document.getElementById('colorDistanceColumn');
     /** @type {HTMLElement} */
     const classifierColumn = document.getElementById('classifierColumn');
 
+    // Global set of available prediction classes (defaults plus any new ones)
+    const availableClasses = new Set(['cub', 'anime', 'adult']);
+
     /**
-     * Loads a setting from localStorage into the specified HTML element
-     * @param {string} id - Element ID to load the setting into
-     * @param {string} defaultValue - Default value if no saved setting exists
+     * Loads a setting from localStorage into the specified input.
+     * @param {string} id - The element ID.
+     * @param {string} defaultValue - The default value if not saved.
      */
     function loadSetting(id, defaultValue) {
         const el = document.getElementById(id);
@@ -314,18 +327,19 @@
         loadSetting('maxFiles', '500');
         loadSetting('metric', 'DistanceLab');
         loadSetting('filterDistanceNumber', '50');
-        loadSetting('filterClassNumber', '0');
-        loadSetting('enableDistance', 'true');
+        loadSetting('enableDistance', 'false');
         loadSetting('enableClassify', 'true');
 
-        // Sync ranges with numbers
+        // Sync slider pairs
         thresholdRange.value = thresholdNumber.value;
         filterDistanceRange.value = filterDistanceNumber.value;
-        filterCubRange.value = filterClassNumber.value;
 
-        // Update column borders based on initial checkbox states
+        // Update column borders based on checkbox states
         updateColumnBorder(enableDistance, colorDistanceColumn);
         updateColumnBorder(enableClassify, classifierColumn);
+
+        // Load saved filter rules from localStorage
+        loadFilterRules();
     });
 
     // Save changes to localStorage for non-slider inputs
@@ -383,20 +397,9 @@
         renderFilteredResults();
     });
 
-    filterClassNumber.addEventListener('input', () => {
-        filterCubRange.value = filterClassNumber.value;
-        localStorage.setItem('filterClassNumber', filterClassNumber.value);
-        renderFilteredResults();
-    });
-    filterCubRange.addEventListener('input', () => {
-        filterClassNumber.value = filterCubRange.value;
-        localStorage.setItem('filterClassNumber', filterClassNumber.value);
-        renderFilteredResults();
-    });
-
     /**
-     * Processes a single SSE message line containing JSON data
-     * @param {string} line - JSON string from the server event
+     * Processes a single SSE message line containing JSON data.
+     * @param {string} line - A JSON string from the server.
      */
     function processLine(line) {
         if (!line.trim()) return;
@@ -404,16 +407,21 @@
             /** @type {Result} */
             const result = JSON.parse(line);
             allResults.push(result);
+            // Update available classes if new prediction keys appear
+            if (result.prediction) {
+                Object.keys(result.prediction).forEach((key) => {
+                    if (!availableClasses.has(key)) {
+                        availableClasses.add(key);
+                        updateFilterClassOptions();
+                    }
+                });
+            }
 
             // Get current filter values (convert percentage inputs to decimals)
             const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
-            const minFilter = parseFloat(filterClassNumber.value) / 100;
-
-            // Apply filter only if the corresponding property exists.
-            const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
-            const passesClassFilter = result.prediction ? (result.prediction.cub >= minFilter) : true;
-
-            if (passesColorFilter && passesClassFilter) {
+            const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesFilters = evaluateFilterRules(result);
+            if (passesColor && passesFilters) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -423,16 +431,252 @@
     }
 
     /**
-     * Re-renders all results that pass the current filters
+     * Saves the current filter rules from the table to localStorage.
+     */
+    function saveFilterRules() {
+        const rows = document.querySelectorAll('.filterRuleRow');
+        const rules = [];
+        rows.forEach((row) => {
+            const condition = row.querySelector('.filterCondition').value;
+            const classSelect = row.querySelector('.filterClass');
+            const selectedClass = classSelect.value;
+            let customValue = "";
+            if (selectedClass === "custom") {
+                customValue = row.querySelector('.customInput').value;
+            }
+            const minValue = row.querySelector('.filterMinNumber').value;
+            rules.push({condition, selectedClass, customValue, minValue});
+        });
+        localStorage.setItem('filterRules', JSON.stringify(rules));
+    }
+
+    /**
+     * Loads filter rules from localStorage and repopulates the rules table.
+     */
+    function loadFilterRules() {
+        const stored = localStorage.getItem('filterRules');
+        if (stored) {
+            try {
+                const rules = JSON.parse(stored);
+                rules.forEach((rule) => {
+                    addFilterRule(rule);
+                });
+            } catch (e) {
+                console.error("Error loading filter rules:", e);
+            }
+        }
+    }
+
+    /**
+     * Updates all filter rule dropdowns to include any new available classes.
+     */
+    function updateFilterClassOptions() {
+        const rows = document.querySelectorAll('.filterRuleRow');
+        rows.forEach((row) => {
+            const select = row.querySelector('.filterClass');
+            const currentValue = select.value;
+            // Clear existing options
+            select.innerHTML = "";
+            // Create options from availableClasses, sorted alphabetically
+            Array.from(availableClasses).sort().forEach((cl) => {
+                const option = document.createElement('option');
+                option.value = cl;
+                option.text = cl;
+                select.appendChild(option);
+            });
+            // Always add the custom option at the end
+            const customOption = document.createElement('option');
+            customOption.value = 'custom';
+            customOption.text = 'custom';
+            select.appendChild(customOption);
+            // Restore previous selection if possible
+            if (Array.from(availableClasses).includes(currentValue)) {
+                select.value = currentValue;
+            } else if (currentValue === "custom") {
+                select.value = "custom";
+            }
+        });
+    }
+
+    /**
+     * Adds a new filter rule row to the filter rules table.
+     * @param {Object} [ruleData] - Optional initial data for the rule.
+     * @param {string} ruleData.condition - "AND" or "OR".
+     * @param {string} ruleData.selectedClass - Selected class value.
+     * @param {string} ruleData.customValue - Custom class value if applicable.
+     * @param {string|number} ruleData.minValue - Minimum filter value.
+     */
+    function addFilterRule(ruleData) {
+        const tableBody = document.getElementById('filterRulesTable').querySelector('tbody');
+        const row = document.createElement('tr');
+        row.classList.add('filterRuleRow');
+
+        // Condition cell
+        const conditionCell = document.createElement('td');
+        const conditionSelect = document.createElement('select');
+        conditionSelect.classList.add('filterCondition');
+        ['AND', 'OR'].forEach((cond) => {
+            const option = document.createElement('option');
+            option.value = cond;
+            option.text = cond;
+            conditionSelect.appendChild(option);
+        });
+        if (ruleData && ruleData.condition) {
+            conditionSelect.value = ruleData.condition;
+        }
+        conditionSelect.addEventListener('change', saveFilterRules);
+        conditionCell.appendChild(conditionSelect);
+        row.appendChild(conditionCell);
+
+        // Class cell with dropdown and optional custom input
+        const classCell = document.createElement('td');
+        const classSelect = document.createElement('select');
+        classSelect.classList.add('filterClass');
+        // Populate with current available classes
+        Array.from(availableClasses).sort().forEach((cl) => {
+            const option = document.createElement('option');
+            option.value = cl;
+            option.text = cl;
+            classSelect.appendChild(option);
+        });
+        // Add custom option
+        const customOption = document.createElement('option');
+        customOption.value = 'custom';
+        customOption.text = 'custom';
+        classSelect.appendChild(customOption);
+        if (ruleData && ruleData.selectedClass) {
+            classSelect.value = ruleData.selectedClass;
+        }
+        classSelect.addEventListener('change', function () {
+            if (this.value === 'custom') {
+                customInput.style.display = 'inline';
+            } else {
+                customInput.style.display = 'none';
+            }
+            saveFilterRules();
+        });
+        classCell.appendChild(classSelect);
+
+        const customInput = document.createElement('input');
+        customInput.type = 'text';
+        customInput.placeholder = 'Custom class';
+        customInput.classList.add('customInput');
+        customInput.style.display =
+            ruleData && ruleData.selectedClass === 'custom' ? 'inline' : 'none';
+        if (ruleData && ruleData.customValue) {
+            customInput.value = ruleData.customValue;
+        }
+        customInput.addEventListener('input', saveFilterRules);
+        classCell.appendChild(customInput);
+        row.appendChild(classCell);
+
+        // Minimum filter cell with number and slider
+        const minCell = document.createElement('td');
+        const minNumber = document.createElement('input');
+        minNumber.type = 'number';
+        minNumber.min = '0';
+        minNumber.max = '100';
+        minNumber.step = '0.1';
+        minNumber.classList.add('filterMinNumber');
+        minNumber.value = ruleData && ruleData.minValue !== undefined ? ruleData.minValue : '0';
+
+        const minSlider = document.createElement('input');
+        minSlider.type = 'range';
+        minSlider.min = '0';
+        minSlider.max = '100';
+        minSlider.step = '0.1';
+        minSlider.classList.add('filterMinSlider');
+        minSlider.value = minNumber.value;
+
+        // Sync the slider and number input
+        minNumber.addEventListener('input', () => {
+            minSlider.value = minNumber.value;
+            saveFilterRules();
+            renderFilteredResults();
+        });
+        minSlider.addEventListener('input', () => {
+            minNumber.value = minSlider.value;
+            saveFilterRules();
+            renderFilteredResults();
+        });
+        minCell.appendChild(minNumber);
+        minCell.appendChild(minSlider);
+        row.appendChild(minCell);
+
+        // Action cell with delete button
+        const deleteCell = document.createElement('td');
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.textContent = 'Delete';
+        deleteButton.addEventListener('click', () => {
+            row.remove();
+            saveFilterRules();
+            renderFilteredResults();
+        });
+        deleteCell.appendChild(deleteButton);
+        row.appendChild(deleteCell);
+
+        tableBody.appendChild(row);
+        saveFilterRules();
+    }
+
+    document.getElementById('addFilterRule').addEventListener('click', () => addFilterRule());
+
+    /**
+     * Evaluates if a result passes all current filter rules.
+     * @param {Result} result - The result object to evaluate.
+     * @returns {boolean} True if all rules pass; false otherwise.
+     */
+    function evaluateFilterRules(result) {
+        const rows = document.querySelectorAll('.filterRuleRow');
+        if (rows.length === 0) return true; // No rules means every result passes.
+        let overallMatch = null;
+        rows.forEach((row) => {
+            const condition = row.querySelector('.filterCondition').value;
+            let className = row.querySelector('.filterClass').value;
+            if (className === 'custom') {
+                className = row.querySelector('.customInput').value.trim();
+            }
+            const minValue = parseFloat(row.querySelector('.filterMinNumber').value) / 100;
+            let match = false;
+            if (result.prediction && result.prediction.hasOwnProperty(className)) {
+                match = result.prediction[className] >= minValue;
+            }
+            if (overallMatch === null) {
+                overallMatch = match;
+            } else {
+                if (condition === 'AND') {
+                    overallMatch = overallMatch && match;
+                } else if (condition === 'OR') {
+                    overallMatch = overallMatch || match;
+                }
+            }
+        });
+        return overallMatch;
+    }
+
+    document.getElementById('pruneButton').addEventListener('click', () => {
+        const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
+        for (let i = allResults.length - 1; i >= 0; i--) {
+            const result = allResults[i];
+            const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            if (!(passesColor && evaluateFilterRules(result))) {
+                allResults.splice(i, 1);
+            }
+        }
+        renderFilteredResults();
+    });
+
+    /**
+     * Re-renders all results that pass the current filters.
      */
     function renderFilteredResults() {
         resultsDiv.innerHTML = '';
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
-        const minFilter = parseFloat(filterClassNumber.value) / 100;
-        allResults.forEach(result => {
-            const passesColorFilter = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
-            const passesCubFilter = result.prediction ? (result.prediction.cub >= minFilter) : true;
-            if (passesColorFilter && passesCubFilter) {
+        allResults.forEach((result) => {
+            const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesFilters = evaluateFilterRules(result);
+            if (passesColor && passesFilters) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.appendChild(itemDiv);
             }
@@ -440,9 +684,9 @@
     }
 
     /**
-     * Creates a DOM element representing a result item
-     * @param {Result} result - The result object to display
-     * @returns {HTMLDivElement} - The created result item element
+     * Creates a DOM element representing a result item.
+     * @param {Result} result - The result object to display.
+     * @returns {HTMLDivElement} The created result item element.
      */
     function createResultItem(result) {
         const itemDiv = document.createElement('div');
@@ -459,33 +703,33 @@
         // Build info content with optional checks.
         let infoHTML = '';
         if (result.color && typeof result.color.distance === 'number') {
-            const distancePercent = (result.color.distance * 100).toFixed(2);
-            infoHTML += `Color Distance: ${distancePercent}%<br>`;
+            const distPercent = (result.color.distance * 100).toFixed(2);
+            infoHTML += `Color Distance: ${distPercent}%<br>`;
         }
-
-        if (result.prediction && typeof result.prediction.cub === 'number') {
-            const cubPercent = (result.prediction.cub * 100).toFixed(2);
-            infoHTML += `Cub: ${cubPercent}%`;
+        if (result.prediction) {
+            for (const [key, value] of Object.entries(result.prediction)) {
+                const percent = (value * 100).toFixed(2);
+                infoHTML += `${key}: ${percent}%<br>`;
+            }
         }
         infoDiv.innerHTML = infoHTML;
         itemDiv.appendChild(infoDiv);
 
-        // Only create the cub bar if prediction exists and has a valid cub value.
-        if (result.prediction && typeof result.prediction.cub === 'number') {
-            const barContainer = document.createElement('div');
-            barContainer.className = 'cub-bar';
-            const barInner = document.createElement('div');
-            barInner.className = 'cub-bar-inner';
-            const cubPercent = (result.prediction.cub * 100).toFixed(2);
-            barInner.style.width = `${result.prediction.cub * 100}%`;
-            barInner.textContent = `${cubPercent}%`;
-            barContainer.appendChild(barInner);
-            itemDiv.appendChild(barContainer);
+        // Create a progress bar for each prediction key
+        if (result.prediction) {
+            for (const [key, value] of Object.entries(result.prediction)) {
+                const barContainer = document.createElement('div');
+                barContainer.className = 'result-bar';
+                const barInner = document.createElement('div');
+                barInner.className = 'result-bar-inner';
+                barInner.style.width = `${value * 100}%`;
+                barInner.textContent = `${(value * 100).toFixed(2)}% - ${key}`;
+                barContainer.appendChild(barInner);
+                itemDiv.appendChild(barContainer);
+            }
         }
-
         return itemDiv;
     }
-
 
     // Handle form submission using server-sent events (SSE)
     document.getElementById('colorForm').addEventListener('submit', function (e) {
