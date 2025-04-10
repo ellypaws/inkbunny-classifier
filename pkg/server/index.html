@@ -42,6 +42,8 @@
             padding: 0.5em;
             border: 1px solid #ccc;
             border-radius: 3px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         button {
@@ -66,6 +68,20 @@
 
         .general-settings {
             margin-bottom: 1em;
+            padding: 1em;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .mode-settings {
+            display: flex;
+            gap: 1em;
+            margin-bottom: 1em;
+        }
+
+        .mode-column {
+            flex: 1;
             padding: 1em;
             background: #fff;
             border: 1px solid #ccc;
@@ -169,14 +185,44 @@
 <h1>Cub Finder</h1>
 <form id="colorForm">
     <div class="general-settings">
-        <label>
-            Folder Path:
-            <input type="text" id="folder" placeholder="/path/to/images" required>
-        </label>
-        <label>
-            Max Files:
-            <input type="number" id="maxFiles" min="1" value="500">
-        </label>
+        <div class="mode-settings">
+            <!-- Local Files Column -->
+            <div class="mode-column" id="localFiles">
+                <h2>Local Files</h2>
+                <label>
+                    Folder Path:
+                    <input type="text" id="folder" placeholder="/path/to/images" required>
+                </label>
+                <label>
+                    Max Files:
+                    <input type="number" id="maxFiles" min="1" value="500">
+                </label>
+                <div class="actions">
+                    <button type="submit" id="startButton">Start</button>
+                    <button type="button" id="cancelBtn" disabled>Cancel</button>
+                </div>
+            </div>
+            <!-- Watch Mode Column -->
+            <div class="mode-column" id="watchMode">
+                <h2>Watch Mode</h2>
+                <label>
+                    SID:
+                    <input type="text" id="sid" placeholder="Session ID" required>
+                </label>
+                <label>
+                    Encryption Key:
+                    <input type="text" id="encryptKey" placeholder="Encryption Key" required>
+                </label>
+                <label>
+                    Refresh Rate (seconds):
+                    <input type="number" id="refreshRate" min="1" value="5">
+                </label>
+                <div class="actions">
+                    <button type="button" id="startWatchButton">Start</button>
+                    <button type="button" id="cancelWatchBtn" disabled>Cancel</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="columns">
@@ -258,11 +304,6 @@
             </div>
         </div>
     </div>
-
-    <div class="actions">
-        <button type="submit" id="startButton">Start</button>
-        <button type="button" id="cancelBtn" disabled>Cancel</button>
-    </div>
 </form>
 
 <div id="results"></div>
@@ -298,7 +339,12 @@
     /** @type {HTMLButtonElement} */
     const cancelButton = document.getElementById('cancelBtn');
     /** @type {EventSource|null} */
-    let source = null; // will hold the EventSource
+    let source = null; // will hold the EventSource for local files
+
+    // Global variables for Watch Mode
+    const startWatchButton = document.getElementById('startWatchButton');
+    const cancelWatchButton = document.getElementById('cancelWatchBtn');
+    let watchSource = null;
 
     // Get references for slider pairs
     /** @type {HTMLInputElement} */
@@ -319,7 +365,6 @@
     const enableDistance = document.getElementById('enableDistance');
     /** @type {HTMLInputElement} */
     const enableClassify = document.getElementById('enableClassify');
-
 
     /** @type {HTMLElement} */
     const colorDistanceColumn = document.getElementById('colorDistanceColumn');
@@ -367,6 +412,10 @@
         loadSetting('enableClassify', 'true');
         loadSetting('enableGlobalMin', 'false');
         loadSetting('globalMinFilterNumber', '0');
+        // New settings for Watch Mode
+        loadSetting('sid', '');
+        loadSetting('encryptKey', '');
+        loadSetting('refreshRate', '5');
 
         // Sync slider pairs
         thresholdRange.value = thresholdNumber.value;
@@ -393,6 +442,16 @@
     });
     document.getElementById('metric').addEventListener('change', (e) => {
         localStorage.setItem('metric', e.target.value);
+    });
+    // New watchers for Watch Mode fields
+    document.getElementById('sid').addEventListener('input', (e) => {
+        localStorage.setItem('sid', e.target.value);
+    });
+    document.getElementById('encryptKey').addEventListener('input', (e) => {
+        localStorage.setItem('encryptKey', e.target.value);
+    });
+    document.getElementById('refreshRate').addEventListener('input', (e) => {
+        localStorage.setItem('refreshRate', e.target.value);
     });
 
     // Enable checkbox event listeners to update column borders and save state
@@ -452,6 +511,32 @@
         localStorage.setItem('globalMinFilterNumber', globalMinFilterNumber.value);
         renderFilteredResults();
     });
+
+    /**
+     * Helper function to start an EventSource stream.
+     * @param {string} url - The URL to fetch.
+     * @param {HTMLButtonElement} startBtn - The start button (to disable while running).
+     * @param {HTMLButtonElement} cancelBtn - The cancel button.
+     * @returns {EventSource} The created EventSource instance.
+     */
+    function startStream(url, startBtn, cancelBtn) {
+        startBtn.disabled = true;
+        // Clear previous results.
+        allResults.length = 0;
+        resultsDiv.innerHTML = '';
+        const evtSource = new EventSource(url);
+        cancelBtn.disabled = false;
+        evtSource.onmessage = function (event) {
+            processLine(event.data);
+        };
+        evtSource.onerror = function (err) {
+            console.error("EventSource failed: ", err);
+            evtSource.close();
+            startBtn.disabled = false;
+            cancelBtn.disabled = true;
+        };
+        return evtSource;
+    }
 
     /**
      * Processes a single SSE message line containing JSON data.
@@ -851,20 +936,15 @@
         return itemDiv;
     }
 
-    // Handle form submission using server-sent events (SSE)
+    // Handle Local Files form submission using server-sent events (SSE)
     document.getElementById('colorForm').addEventListener('submit', function (e) {
         e.preventDefault();
-        startButton.disabled = true;
         const folder = document.getElementById('folder').value;
         const color = document.getElementById('color').value;
         // Convert threshold from percentage (number input) to a decimal.
         const threshold = parseFloat(thresholdNumber.value) / 100;
         const maxFiles = document.getElementById('maxFiles').value;
         const metric = document.getElementById('metric').value;
-        // Clear previous results.
-        allResults.length = 0;
-        resultsDiv.innerHTML = '';
-
 
         const params = {
             folder,
@@ -882,29 +962,35 @@
 
         const path = `${serverURL}/walk?${queryString}`;
 
-        // Use EventSource to handle server-sent events.
-        source = new EventSource(path);
-        cancelButton.disabled = false;
-
-        source.onmessage = function (event) {
-            // Each event.data is expected to be a JSON string (without the "data:" prefix as it's automatically removed).
-            processLine(event.data);
-        };
-
-        source.onerror = function (err) {
-            console.error("EventSource failed: ", err);
-            source.close();
-            startButton.disabled = false;
-            cancelButton.disabled = true;
-        };
+        source = startStream(path, startButton, cancelButton);
     });
 
-    // Cancel button to close the SSE connection.
+    // Cancel button to close the SSE connection for Local Files mode.
     cancelButton.addEventListener('click', () => {
         if (source) {
             source.close();
             startButton.disabled = false;
             cancelButton.disabled = true;
+        }
+    });
+
+    // Handle Watch Mode start button click
+    startWatchButton.addEventListener('click', () => {
+        const sid = document.getElementById('sid').value;
+        const encryptKey = document.getElementById('encryptKey').value;
+        const refreshRate = document.getElementById('refreshRate').value;
+        // Build query string specific for watch mode.
+        const queryString = `sid=${encodeURIComponent(sid)}&encrypt_key=${encodeURIComponent(encryptKey)}&classify=true&refresh_rate_seconds=${encodeURIComponent(refreshRate)}`;
+        const path = `${serverURL}/watch?${queryString}`;
+        watchSource = startStream(path, startWatchButton, cancelWatchButton);
+    });
+
+    // Cancel button to close the SSE connection for Watch Mode.
+    cancelWatchButton.addEventListener('click', () => {
+        if (watchSource) {
+            watchSource.close();
+            startWatchButton.disabled = false;
+            cancelWatchButton.disabled = true;
         }
     });
 </script>
