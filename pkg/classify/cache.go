@@ -50,7 +50,7 @@ func (c *cache) Load(name string) error {
 	return nil
 }
 
-func (c *cache) Predict(ctx context.Context, name string, file io.ReadSeeker) (Prediction, error) {
+func (c *cache) Predict(ctx context.Context, name string, file io.Reader) (Prediction, error) {
 	c.RLock()
 	if v, ok := c.predictions[name]; ok {
 		c.RUnlock()

@@ -15,6 +15,7 @@ import (
 func main() {
 	// Serve the home page and API endpoints.
 	http.HandleFunc("GET /", server.HomeHandler)
+	http.HandleFunc("GET /watch", server.Watcher)
 	http.HandleFunc("GET /walk", server.WalkHandler)
 	http.HandleFunc("GET /file/{path}", server.FileProxy)
 

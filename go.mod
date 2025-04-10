@@ -2,8 +2,11 @@ module classifier
 
 go 1.24.2
 
+replace github.com/ellypaws/inkbunny/api => /cmd/dataset/vendor/github.com/ellypaws/inkbunny/api
+
 require (
 	github.com/charmbracelet/log v0.4.1
+	github.com/ellypaws/inkbunny/api v0.0.0-20240523184311-b8d31bbdc865
 	github.com/lucasb-eyer/go-colorful v1.2.0
 	golang.org/x/image v0.26.0
 )
