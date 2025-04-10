@@ -31,8 +31,14 @@
         }
 
         #tab-content {
+            animation: fadeEffect 1s;
             max-width: 600px;
             margin: 0 auto;
+        }
+
+        @keyframes fadeEffect {
+            from {opacity: 0;}
+            to {opacity: 1;}
         }
 
         form {
@@ -117,6 +123,14 @@
             margin-bottom: 1em;
             font-weight: bold;
         }
+        
+        #colorDistanceColumn {
+            animation: fadeEffect 2s;
+        }
+        
+        #classifierColumn {
+            animation: fadeEffect 3s;
+        }
 
         .actions {
             margin-top: 1em;
@@ -129,6 +143,7 @@
         }
 
         .result-item {
+            animation: fadeEffect 500ms;
             background: #fff;
             border: 1px solid #ccc;
             padding: 0.5em;
