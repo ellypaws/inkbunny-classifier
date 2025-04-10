@@ -564,7 +564,7 @@
             const passesFilters = evaluateFilterRules(result);
             if (passesColor && passesFilters) {
                 const itemDiv = createResultItem(result);
-                resultsDiv.appendChild(itemDiv);
+                resultsDiv.insertBefore(itemDiv, resultsDiv.firstChild);
             }
         } catch (e) {
             console.error("Failed to parse line:", line, e);
@@ -856,7 +856,7 @@
             const passesFilters = evaluateFilterRules(result);
             if (passesColor && passesFilters) {
                 const itemDiv = createResultItem(result);
-                resultsDiv.appendChild(itemDiv);
+                resultsDiv.insertBefore(itemDiv, resultsDiv.firstChild);
             }
         });
     }
