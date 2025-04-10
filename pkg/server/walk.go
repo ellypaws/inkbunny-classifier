@@ -193,11 +193,6 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 		default:
 		}
 
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-
 		count++
 		wg.Add(1)
 
@@ -212,6 +207,17 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			defer func() { <-distanceConfig.semaphore; group.Done() }()
 			if !distanceConfig.enabled {
 				return
+			}
+			file, err := os.Open(path)
+			if err != nil {
+				log.Errorf("Error opening file %s: %v", path, err)
+				return
+			}
+			defer file.Close()
+			select {
+			case <-ctx.Done():
+				return
+			default:
 			}
 			pixelDistance := distance.PixelDistance(ctx, path, file, distanceConfig.target, distanceConfig.threshold, distanceConfig.metric)
 			select {
@@ -233,6 +239,12 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 			if !classifyConfig.enabled {
 				return
 			}
+			file, err := os.Open(path)
+			if err != nil {
+				log.Errorf("Error opening file %s: %v", path, err)
+				return
+			}
+			defer file.Close()
 			select {
 			case <-ctx.Done():
 				return
@@ -263,7 +275,6 @@ func walkDir(ctx context.Context, root string, max int, results chan<- Result, d
 					log.Warn("No results found", "path", path)
 				}
 			}
-			file.Close()
 			wg.Done()
 		}()
 
