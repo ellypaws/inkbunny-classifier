@@ -953,6 +953,22 @@
         return itemDiv;
     }
 
+    /**
+     * Creates a path for the server request.
+     * @param {string} path - The base path.
+     * @param {Object<string, string|number|boolean>} params - The query parameters.
+     * @return {string} The full path with query parameters.
+     */
+    function getPath(path, params) {
+        if (!params) {
+            return path;
+        }
+        const queryString = Object.entries(params)
+            .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+            .join('&');
+        return `${path}?${queryString}`;
+    }
+
     // Handle Local Files form submission using server-sent events (SSE)
     document.getElementById('colorForm').addEventListener('submit', function (e) {
         e.preventDefault();
@@ -963,6 +979,7 @@
         const maxFiles = document.getElementById('maxFiles').value;
         const metric = document.getElementById('metric').value;
 
+        /** @type {Object<string, string|number|boolean>} */
         const params = {
             folder,
             color,
@@ -972,13 +989,7 @@
             distance: enableDistance.checked,
             classify: enableClassify.checked,
         };
-
-        const queryString = Object.entries(params)
-            .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-            .join('&');
-
-        const path = `${serverURL}/walk?${queryString}`;
-
+        const path = getPath(`${serverURL}/walk`, params);
         source = startStream(path, startButton, cancelButton);
     });
 
@@ -995,9 +1006,16 @@
         const sid = document.getElementById('sid').value;
         const encryptKey = document.getElementById('encryptKey').value;
         const refreshRate = document.getElementById('refreshRate').value;
+
         // Build query string specific for watch mode.
-        const queryString = `sid=${encodeURIComponent(sid)}&encrypt_key=${encodeURIComponent(encryptKey)}&classify=true&refresh_rate_seconds=${encodeURIComponent(refreshRate)}`;
-        const path = `${serverURL}/watch?${queryString}`;
+        /** @type {Object<string, string|number|boolean>} */
+        const params = {
+            sid,
+            encrypt_key: encryptKey,
+            refresh_rate_seconds: refreshRate,
+            classify: enableClassify.checked,
+        }
+        const path = getPath(`${serverURL}/watch`, params);
         watchSource = startStream(path, startWatchButton, cancelWatchButton);
     });
 
