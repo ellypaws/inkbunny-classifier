@@ -25,8 +25,9 @@ func (c *cache) Distance(distance func(colorful.Color, colorful.Color) float64, 
 	}
 	c.RUnlock()
 
-	c.Lock()
 	d := distance(from, target)
+
+	c.Lock()
 	c.cache[hex] = d
 	c.Unlock()
 
