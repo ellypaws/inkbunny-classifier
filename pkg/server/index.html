@@ -153,11 +153,11 @@
             margin-top: 5px;
             padding: 5px;
         }
-        
+
         #pruneButton {
             background: #f16767;
         }
-        
+
         #pruneButton:disabled {
             background: #ccc;
             cursor: not-allowed;
@@ -225,6 +225,21 @@
                     <input type="checkbox" id="enableClassify" checked> Enable Classification
                 </label>
             </div>
+
+            <!-- Global Minimum Filter Section -->
+            <div id="globalMinFilterSection">
+                <label>
+                    <input type="checkbox" id="enableGlobalMin"> Enable Global Min Filter
+                </label>
+                <label>
+                    Global Minimum Filter (%):
+                    <div class="slider-container">
+                        <input type="number" id="globalMinFilterNumber" step="0.1" min="0" max="100" value="0">
+                        <input type="range" id="globalMinFilterRange" step="0.1" min="0" max="100" value="0">
+                    </div>
+                </label>
+            </div>
+
             <div id="filterRulesSection">
                 <h2>Filter Rules</h2>
                 <button type="button" id="addFilterRule">Add Filter</button>
@@ -254,7 +269,7 @@
 
 <script>
     const serverURL = window.location.origin;
-    
+
     /**
      * @typedef {Object} ColorResult
      * @property {boolean} found - Whether the target color was found within threshold
@@ -295,6 +310,11 @@
     /** @type {HTMLInputElement} */
     const filterDistanceRange = document.getElementById('filterDistanceRange');
 
+    // Global Minimum Filter elements
+    const enableGlobalMin = document.getElementById('enableGlobalMin');
+    const globalMinFilterNumber = document.getElementById('globalMinFilterNumber');
+    const globalMinFilterRange = document.getElementById('globalMinFilterRange');
+
     // Checkboxes
     const enableDistance = document.getElementById('enableDistance');
     /** @type {HTMLInputElement} */
@@ -308,6 +328,9 @@
 
     // Global set of available prediction classes (defaults plus any new ones)
     const availableClasses = new Set(['cub', 'anime', 'adult']);
+    // Global object for class colors and tracking defined CSS
+    const classColors = {};
+    const definedClasses = new Set();
 
     /**
      * Loads a setting from localStorage into the specified input.
@@ -342,10 +365,13 @@
         loadSetting('filterDistanceNumber', '50');
         loadSetting('enableDistance', 'false');
         loadSetting('enableClassify', 'true');
+        loadSetting('enableGlobalMin', 'false');
+        loadSetting('globalMinFilterNumber', '0');
 
         // Sync slider pairs
         thresholdRange.value = thresholdNumber.value;
         filterDistanceRange.value = filterDistanceNumber.value;
+        globalMinFilterRange.value = globalMinFilterNumber.value;
 
         // Update column borders based on checkbox states
         updateColumnBorder(enableDistance, colorDistanceColumn);
@@ -379,6 +405,11 @@
         localStorage.setItem('enableClassify', this.checked.toString());
     });
 
+    enableGlobalMin.addEventListener('change', () => {
+        localStorage.setItem('enableGlobalMin', enableGlobalMin.checked.toString());
+        renderFilteredResults();
+    });
+
     function updateColumnBorder(checkbox, column) {
         if (checkbox.checked) {
             column.classList.remove('disabled');
@@ -407,6 +438,18 @@
     filterDistanceRange.addEventListener('input', () => {
         filterDistanceNumber.value = filterDistanceRange.value;
         localStorage.setItem('filterDistanceNumber', filterDistanceNumber.value);
+        renderFilteredResults();
+    });
+
+    // Sync slider pairs for global minimum filter
+    globalMinFilterNumber.addEventListener('input', () => {
+        globalMinFilterRange.value = globalMinFilterNumber.value;
+        localStorage.setItem('globalMinFilterNumber', globalMinFilterNumber.value);
+        renderFilteredResults();
+    });
+    globalMinFilterRange.addEventListener('input', () => {
+        globalMinFilterNumber.value = globalMinFilterRange.value;
+        localStorage.setItem('globalMinFilterNumber', globalMinFilterNumber.value);
         renderFilteredResults();
     });
 
@@ -734,9 +777,12 @@
     }
 
     /**
-     * Creates a DOM element representing a result item.
-     * @param {Result} result - The result object to display.
-     * @returns {HTMLDivElement} The created result item element.
+     * Creates a DOM element for a result item.
+     * Prediction keys are sorted in descending order.
+     * If the global min filter is enabled, only keys at or above that threshold are shown.
+     * Each progress bar is assigned a class name "class_<key>" for dynamic coloring.
+     * @param {Result} result - The result object.
+     * @returns {HTMLDivElement} The result item element.
      */
     function createResultItem(result) {
         const itemDiv = document.createElement('div');
@@ -756,18 +802,40 @@
             const distPercent = (result.color.distance * 100).toFixed(2);
             infoHTML += `Color Distance: ${distPercent}%<br>`;
         }
+
+        // Sort all prediction keys in descending order.
+        const sortedKeys = result.prediction
+            ? Object.keys(result.prediction).sort((a, b) => result.prediction[b] - result.prediction[a])
+            : [];
+
+        // Get the threshold as a decimal.
+        const globalMin = parseFloat(globalMinFilterNumber.value) / 100;
+        // If the filter is enabled, filter out keys below the global minimum.
+        // If disabled, use all keys.
+        let filteredKeys = enableGlobalMin.checked
+            ? sortedKeys.filter((key) => result.prediction[key] >= globalMin)
+            : sortedKeys;
+
+        // If filtering results in an empty array but there were predictions,
+        // fallback to the key with the highest value.
+        if (filteredKeys.length === 0 && sortedKeys.length > 0) {
+            filteredKeys = [sortedKeys[0]];
+        }
+
         if (result.prediction) {
-            for (const [key, value] of Object.entries(result.prediction)) {
+            filteredKeys.forEach((key) => {
+                const value = result.prediction[key];
                 const percent = (value * 100).toFixed(2);
                 infoHTML += `${key}: ${percent}%<br>`;
-            }
+            });
         }
         infoDiv.innerHTML = infoHTML;
         itemDiv.appendChild(infoDiv);
 
-        // Create a progress bar for each prediction key
+        // Create a progress bar for each prediction key (sorted descending)
         if (result.prediction) {
-            for (const [key, value] of Object.entries(result.prediction)) {
+            filteredKeys.forEach((key) => {
+                const value = result.prediction[key];
                 const barContainer = document.createElement('div');
                 barContainer.className = 'result-bar';
                 const barInner = document.createElement('div');
@@ -778,7 +846,7 @@
                 barInner.textContent = `${(value * 100).toFixed(2)}% - ${key}`;
                 barContainer.appendChild(barInner);
                 itemDiv.appendChild(barContainer);
-            }
+            });
         }
         return itemDiv;
     }
