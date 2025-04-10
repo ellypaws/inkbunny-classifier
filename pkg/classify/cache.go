@@ -58,13 +58,14 @@ func (c *cache) Predict(ctx context.Context, name string, file io.Reader) (Predi
 	}
 	c.RUnlock()
 
-	c.Lock()
-	defer c.Unlock()
 	d, err := Predict(ctx, file)
 	if err != nil {
 		return nil, err
 	}
+
+	c.Lock()
 	c.predictions[name] = d
+	c.Unlock()
 
 	return d, nil
 }
@@ -77,13 +78,14 @@ func (c *cache) PredictURL(ctx context.Context, path string) (Prediction, error)
 	}
 	c.RUnlock()
 
-	c.Lock()
-	defer c.Unlock()
 	d, err := PredictURL(ctx, path)
 	if err != nil {
 		return nil, err
 	}
+
+	c.Lock()
 	c.predictions[path] = d
+	c.Unlock()
 
 	return d, nil
 }
