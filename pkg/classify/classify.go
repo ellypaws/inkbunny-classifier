@@ -22,7 +22,7 @@ import (
 	"classifier/pkg/utils"
 )
 
-type Prediction map[string]float64
+type Prediction = map[string]float64
 
 var bodyPool = utils.NewPoolMake[*bytes.Buffer]()
 
