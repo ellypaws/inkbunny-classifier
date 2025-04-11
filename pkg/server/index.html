@@ -913,6 +913,7 @@
         if (rows.length === 0) return true; // No rules means every result passes.
         let overallMatch = null;
         rows.forEach((row) => {
+            // Get the condition (or condition) for combining rules.
             const condition = row.querySelector('.filterCondition').value;
             let className = row.querySelector('.filterClass').value;
             if (className === 'custom') {
@@ -921,17 +922,24 @@
             const minValue = parseFloat(row.querySelector('.filterMinNumber').value) / 100;
             let match = false;
             if (result.prediction && result.prediction.hasOwnProperty(className)) {
+                // Standard check: value is at least the minimum.
                 match = result.prediction[className] >= minValue;
             }
+
+            // For NOT rules, invert the match condition.
+            if (condition === 'NOT') {
+                match = !match;
+            }
+
+            // If this is the first rule, just set overallMatch.
             if (overallMatch === null) {
                 overallMatch = match;
             } else {
-                if (condition === 'AND') {
+                // Combine based on the condition. For NOT, you can think of it as an inverted AND.
+                if (condition === 'AND' || condition === 'NOT') {
                     overallMatch = overallMatch && match;
                 } else if (condition === 'OR') {
                     overallMatch = overallMatch || match;
-                } else if (condition === 'NOT') {
-                    overallMatch = overallMatch && !match;
                 }
             }
         });
