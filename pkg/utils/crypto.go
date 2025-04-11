@@ -16,11 +16,12 @@ import (
 // DownloadEncrypt downloads a file from the given URL and saves it to the specified folder.
 // After saving the file, it immediately opens it using [lib.Crypto.Open].
 // If the file already exists, it calls [lib.Crypto.Open].
-func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, path, folder string) (io.ReadCloser, error) {
+func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, path, folder string) (*lib.CryptoFile, error) {
 	u, err := url.Parse(path)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing URL: %w", err)
 	}
+
 	fileName := filepath.Join(folder, filepath.Base(u.Path))
 	if lib.FileExists(fileName) {
 		return crypto.Open(fileName)

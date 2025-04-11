@@ -120,7 +120,8 @@ func FileExists(path string) bool {
 	return !errors.Is(err, fs.ErrNotExist)
 }
 
-func (c *Crypto) Open(path string) (io.ReadCloser, error) {
+// Open opens a file and returns a CryptoFile, which implements io.ReadSeekCloser
+func (c *Crypto) Open(path string) (*CryptoFile, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
@@ -131,14 +132,18 @@ func (c *Crypto) Open(path string) (io.ReadCloser, error) {
 		return nil, fmt.Errorf("error making decoder: %w", err)
 	}
 
-	return &closer{decoder, file}, nil
+	return &CryptoFile{decoder, file}, nil
 }
 
-type closer struct {
+type CryptoFile struct {
 	decoder io.Reader
-	closer  io.Closer
+	file    *os.File
 }
 
-func (c *closer) Read(p []byte) (n int, err error) { return c.decoder.Read(p) }
+func (c *CryptoFile) Read(p []byte) (n int, err error) { return c.decoder.Read(p) }
 
-func (c *closer) Close() error { return c.closer.Close() }
+func (c *CryptoFile) Seek(offset int64, whence int) (int64, error) {
+	return c.file.Seek(offset, whence)
+}
+
+func (c *CryptoFile) Close() error { return c.file.Close() }
