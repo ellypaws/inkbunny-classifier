@@ -64,7 +64,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			prediction, err := classify.DefaultCache.Predict(r.Context(), submission.FileURLFull, file)
 			file.Close()
 			if err != nil {
-				log.Printf("Error predicting submission: %v", err)
+				log.Errorf("Error predicting submission: %v", err)
 				continue
 			}
 			log.Infof("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
