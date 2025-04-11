@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/log"
+
 	"classifier/pkg/lib"
 )
 
@@ -23,6 +25,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	if lib.FileExists(indexPath) {
 		http.ServeFile(w, r, indexPath)
 	} else {
+		log.Warnf("No index file found at %s, serving embed", indexPath)
 		w.Write(index)
 	}
 }
