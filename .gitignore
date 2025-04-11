@@ -1,6 +1,4 @@
 .idea
-/dataset
 vendor
-*.png
 *.json
 *.exe
