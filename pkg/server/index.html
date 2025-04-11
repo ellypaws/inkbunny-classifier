@@ -372,6 +372,8 @@
     const startButton = document.getElementById('startButton');
     /** @type {HTMLButtonElement} */
     const cancelButton = document.getElementById('cancelBtn');
+    /** @type {HTMLButtonElement} */
+    const pruneButton = document.getElementById('pruneButton');
     /** @type {EventSource|null} */
     let source = null; // will hold the EventSource for local files
 
@@ -606,6 +608,9 @@
 
         // Clear previous results.
         allResults.length = 0;
+        filterCountSpan.textContent = '(0/0)';
+        pruneButton.disabled = true;
+        pruneButton.textContent = 'Prune'
         resultsDiv.innerHTML = '';
         const evtSource = new EventSource(url);
         cancelBtn.disabled = false;
@@ -645,10 +650,17 @@
             const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
             const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
             const passesFilters = evaluateFilterRules(result);
+            let currentCount = parseInt(filterCountSpan.textContent.match(/\d+/)[0]);
             if (passesColor && passesFilters) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.insertBefore(itemDiv, resultsDiv.firstChild);
+                currentCount++
+            } else {
+                const removedCount = allResults.length - currentCount
+                pruneButton.disabled = false;
+                pruneButton.textContent = removedCount ? `Prune ${removedCount}` : `Prune`;
             }
+            filterCountSpan.textContent = `(${currentCount}/${allResults.length})`;
         } catch (e) {
             console.error("Failed to parse line:", line, e);
         }
@@ -946,7 +958,7 @@
         return overallMatch;
     }
 
-    document.getElementById('pruneButton').addEventListener('click', () => {
+    pruneButton.addEventListener('click', () => {
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
         for (let i = allResults.length - 1; i >= 0; i--) {
             const result = allResults[i];
@@ -975,6 +987,9 @@
                 passCount++;
             }
         });
+        const removedCount = allResults.length - passCount
+        pruneButton.disabled = !removedCount;
+        pruneButton.textContent = removedCount ? `Prune ${removedCount}` : `Prune`;
         filterCountSpan.textContent = `(${passCount}/${allResults.length})`;
     }
 
