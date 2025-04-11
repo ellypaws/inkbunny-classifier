@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>Classifier</title>
@@ -782,7 +782,7 @@
         const conditionCell = document.createElement('td');
         const conditionSelect = document.createElement('select');
         conditionSelect.classList.add('filterCondition');
-        ['AND', 'OR'].forEach((cond) => {
+        ['AND', 'OR', 'NOT'].forEach((cond) => {
             const option = document.createElement('option');
             option.value = cond;
             option.text = cond;
@@ -930,6 +930,8 @@
                     overallMatch = overallMatch && match;
                 } else if (condition === 'OR') {
                     overallMatch = overallMatch || match;
+                } else if (condition === 'NOT') {
+                    overallMatch = overallMatch && !match;
                 }
             }
         });
