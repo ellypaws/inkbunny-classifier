@@ -69,9 +69,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			}
 			log.Infof("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
 
-			mu.Lock()
-			readSubs[submission.SubmissionID] = prediction
-			mu.Unlock()
+			go func() { mu.Lock(); readSubs[submission.SubmissionID] = prediction; mu.Unlock() }()
 
 			if encryptKey != "" {
 				submission.FileURLFull = fmt.Sprintf("%s?decrypt_key=%s", submission.FileURLFull, encryptKey)
