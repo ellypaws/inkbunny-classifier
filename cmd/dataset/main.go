@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -20,7 +22,9 @@ func main() {
 	request := api.SubmissionSearchRequest{
 		SID:      sid,
 		GetRID:   true,
-		Username: "JeffyCottonbun",
+		Text:     os.Getenv("TEXT"),
+		Keywords: true,
+		OrderBy:  "favs",
 	}
 	response, err := user.SearchSubmissions(request)
 	if err != nil {
@@ -34,19 +38,27 @@ func main() {
 			continue
 		}
 		for _, sub := range subs {
-			semaphore <- struct{}{}
-			if err := downloadFile(sub.ThumbnailURLHugeNonCustom); err != nil {
-				log.Printf("Error downloading submission: %v", err)
+			if sub.RatingID < 1 {
+				log.Printf("Skipping submission: %v, rating: %d", sub, sub.RatingID)
+				continue
 			}
-			log.Printf("Downloaded submission: %v", sub.ThumbnailURLHugeNonCustom)
+
+			semaphore <- struct{}{}
+			err = downloadFile(sub.FileURLFull, "cub")
 			<-semaphore
+
+			if err != nil {
+				log.Printf("Error downloading submission: %v", err)
+				continue
+			}
+			log.Printf("Downloaded submission: %v", sub.FileURLFull)
 		}
 	}
 }
 
 var client = http.Client{Timeout: 30 * time.Second}
 
-func downloadFile(path string) error {
+func downloadFile(path string, folder string) error {
 	u, err := url.Parse(path)
 	if err != nil {
 		return err
@@ -58,11 +70,17 @@ func downloadFile(path string) error {
 	}
 	defer resp.Body.Close()
 
-	fileName := filepath.Join("dataset/raw", filepath.Base(u.Path))
-	err = os.MkdirAll("dataset/raw", 0755)
+	folderName := filepath.Join("dataset", folder)
+	fileName := filepath.Join(folderName, filepath.Base(u.Path))
+	err = os.MkdirAll(folderName, 0755)
 	if err != nil {
 		return err
 	}
+
+	if fileExists(fileName) {
+		return errors.New("file already exists")
+	}
+
 	out, err := os.Create(fileName)
 	if err != nil {
 		return err
@@ -71,4 +89,9 @@ func downloadFile(path string) error {
 
 	_, err = io.Copy(out, resp.Body)
 	return err
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return !errors.Is(err, fs.ErrNotExist)
 }
