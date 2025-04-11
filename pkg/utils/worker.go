@@ -13,10 +13,7 @@ type WorkerPool[J any, R any] struct {
 	working sync.Once
 	work    func(<-chan J, func(R))
 
-	closing   chan struct{}
-	closeOnce sync.Once
 	closed    bool
-
 	jobs      chan J
 	responses chan Response[R]
 }
@@ -71,24 +68,14 @@ func (p *WorkerPool[_, R]) do() {
 // Add adds jobs to the worker pool. It blocks if the pool is full.
 func (p *WorkerPool[J, _]) Add(j ...J) {
 	for _, j := range j {
-		select {
-		case <-p.closing:
-			return
-		default:
-			p.jobs <- j
-		}
+		p.jobs <- j
 	}
 }
 
 // AddIter adds jobs to the worker pool from an iterator. It blocks if the pool is full.
 func (p *WorkerPool[J, _]) AddIter(j iter.Seq[J]) {
 	for j := range j {
-		select {
-		case <-p.closing:
-			return
-		default:
-			p.jobs <- j
-		}
+		p.jobs <- j
 	}
 }
 
@@ -96,12 +83,7 @@ func (p *WorkerPool[J, _]) AddIter(j iter.Seq[J]) {
 func (p *WorkerPool[J, _]) AddAndClose(j ...J) {
 	go func() {
 		for _, j := range j {
-			select {
-			case <-p.closing:
-				return
-			default:
-				p.jobs <- j
-			}
+			p.jobs <- j
 		}
 		p.Close()
 	}()
@@ -111,12 +93,7 @@ func (p *WorkerPool[J, _]) AddAndClose(j ...J) {
 func (p *WorkerPool[J, _]) AddAndCloseIter(j iter.Seq[J]) {
 	go func() {
 		for j := range j {
-			select {
-			case <-p.closing:
-				return
-			default:
-				p.jobs <- j
-			}
+			p.jobs <- j
 		}
 		p.Close()
 	}()
@@ -124,11 +101,7 @@ func (p *WorkerPool[J, _]) AddAndCloseIter(j iter.Seq[J]) {
 
 // Close closes the worker pool. It should be called after all jobs are added.
 func (p *WorkerPool[_, _]) Close() {
-	p.closeOnce.Do(func() {
-		p.closing = make(chan struct{})
-		close(p.closing)
-		close(p.jobs)
-	})
+	close(p.jobs)
 }
 
 // Iter returns an iterator that yields the results from the worker pool.
