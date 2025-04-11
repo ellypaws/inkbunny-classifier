@@ -129,7 +129,7 @@ func DownloadFile(ctx context.Context, path, folder string, crypto *Crypto) (io.
 	}
 	fileName := filepath.Join(folder, filepath.Base(u.Path))
 	if FileExists(fileName) {
-		return OpenFile(fileName, crypto)
+		return crypto.Open(fileName)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -165,7 +165,7 @@ func DownloadFile(ctx context.Context, path, folder string, crypto *Crypto) (io.
 		return nil, fmt.Errorf("error writing to file: %w", err)
 	}
 
-	return OpenFile(fileName, crypto)
+	return crypto.Open(fileName)
 }
 
 func FileExists(path string) bool {
@@ -173,13 +173,13 @@ func FileExists(path string) bool {
 	return !errors.Is(err, fs.ErrNotExist)
 }
 
-func OpenFile(path string, crypto *Crypto) (io.ReadCloser, error) {
+func (c *Crypto) Open(path string) (io.ReadCloser, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
 	}
 
-	decoder, err := crypto.Decoder(file)
+	decoder, err := c.Decoder(file)
 	if err != nil {
 		return nil, fmt.Errorf("error making decoder: %w", err)
 	}

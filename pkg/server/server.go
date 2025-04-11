@@ -51,7 +51,7 @@ func serveEncryptedFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, err := lib.OpenFile(path, crypto)
+	file, err := crypto.Open(path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
