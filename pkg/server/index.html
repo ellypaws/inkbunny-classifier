@@ -592,19 +592,12 @@
     /**
      * Helper function to start an EventSource stream.
      * @param {string} url - The URL to fetch.
-     * @param {HTMLButtonElement} startBtn - The start button for the current mode (to disable while running).
      * @param {HTMLButtonElement} cancelBtn - The cancel button for the current mode.
      * @returns {EventSource} The created EventSource instance.
      */
-    function startStream(url, startBtn, cancelBtn) {
-        // Disable the current mode's start button.
-        startBtn.disabled = true;
-        // Disable the other mode's start button as well.
-        if (startBtn === startButton) {
-            startWatchButton.disabled = true;
-        } else if (startBtn === startWatchButton) {
-            startButton.disabled = true;
-        }
+    function startStream(url, cancelBtn) {
+        startWatchButton.disabled = true;
+        startButton.disabled = true;
 
         // Clear previous results.
         allResults.length = 0;
@@ -1116,7 +1109,7 @@
             classify: enableClassify.checked,
         };
         const path = getPath(`${serverURL}/walk`, params);
-        source = startStream(path, startButton, cancelButton);
+        source = startStream(path, cancelButton);
     });
 
     // Cancel button to close the SSE connection for Local Files mode.
@@ -1143,7 +1136,7 @@
             classify: enableClassify.checked,
         }
         const path = getPath(`${serverURL}/watch`, params);
-        watchSource = startStream(path, startWatchButton, cancelWatchButton);
+        watchSource = startStream(path, cancelWatchButton);
     });
 
     // Cancel button to close the SSE connection for Watch Mode.
