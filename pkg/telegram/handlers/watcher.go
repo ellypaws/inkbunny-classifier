@@ -4,10 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +14,7 @@ import (
 	"github.com/ellypaws/inkbunny/api"
 
 	"classifier/pkg/classify"
+	"classifier/pkg/lib"
 	"classifier/pkg/utils"
 )
 
@@ -50,7 +47,7 @@ func (b *Bot) Watcher() error {
 
 			log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
 
-			file, err := downloadFile(ctx, submission.FileURLFull, filepath.Join("inkbunny", submission.Username), b.crypto)
+			file, err := lib.DownloadFile(ctx, submission.FileURLFull, filepath.Join("inkbunny", submission.Username), b.crypto)
 			if err != nil {
 				b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 				continue
@@ -131,81 +128,4 @@ func (b *Bot) Watcher() error {
 	}
 
 	return nil
-}
-
-var client = http.Client{Timeout: 30 * time.Second}
-
-func downloadFile(ctx context.Context, path, folder string, crypto *utils.Crypto) (io.ReadCloser, error) {
-	u, err := url.Parse(path)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing URL: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %w", err)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error downloading file: %w", err)
-	}
-	defer resp.Body.Close()
-
-	fileName := filepath.Join(folder, filepath.Base(u.Path))
-	err = os.MkdirAll(folder, 0755)
-	if err != nil {
-		return nil, fmt.Errorf("error creating folder: %w", err)
-	}
-
-	if fileExists(fileName) {
-		return openFile(fileName, crypto)
-	}
-
-	out, err := os.Create(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("error creating file: %w", err)
-	}
-
-	encoder, err := crypto.Encoder(out)
-	if err != nil {
-		out.Close()
-		return nil, fmt.Errorf("error creating encoder: %w", err)
-	}
-
-	_, err = io.Copy(encoder, resp.Body)
-	if err != nil {
-		out.Close()
-		return nil, fmt.Errorf("error writing to file: %w", err)
-	}
-
-	return openFile(fileName, crypto)
-}
-
-func openFile(path string, crypto *utils.Crypto) (io.ReadCloser, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file: %w", err)
-	}
-
-	decoder, err := crypto.Decoder(file)
-	if err != nil {
-		return nil, fmt.Errorf("error making decoder: %w", err)
-	}
-
-	return &closer{decoder, file}, nil
-}
-
-type closer struct {
-	decoder io.Reader
-	closer  io.Closer
-}
-
-func (c *closer) Read(p []byte) (n int, err error) { return c.decoder.Read(p) }
-
-func (c *closer) Close() error { return c.closer.Close() }
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return !errors.Is(err, fs.ErrNotExist)
 }
