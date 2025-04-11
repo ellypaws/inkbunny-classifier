@@ -13,7 +13,6 @@ import (
 	"github.com/ellypaws/inkbunny/api"
 
 	"classifier/pkg/classify"
-	"classifier/pkg/lib"
 	"classifier/pkg/utils"
 )
 
@@ -46,7 +45,7 @@ func (b *Bot) Watcher() error {
 
 			b.logger.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
 
-			file, err := lib.DownloadFile(ctx, submission.FileURLFull, filepath.Join("inkbunny", submission.Username), b.crypto)
+			file, err := utils.DownloadEncrypt(ctx, b.crypto, submission.FileURLFull, filepath.Join("inkbunny", submission.Username))
 			if err != nil {
 				b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 				continue

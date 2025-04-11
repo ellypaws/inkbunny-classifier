@@ -49,7 +49,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 
 			log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
 
-			file, err := lib.DownloadFile(r.Context(), submission.FileURLFull, filepath.Join("inkbunny", submission.Username), crypto)
+			file, err := utils.DownloadEncrypt(r.Context(), crypto, submission.FileURLFull, filepath.Join("inkbunny", submission.Username))
 			if err != nil {
 				log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 				continue
