@@ -1,4 +1,14 @@
 .idea
 vendor
+
+# config
+*.txt
 *.json
 *.exe
+
+# images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
