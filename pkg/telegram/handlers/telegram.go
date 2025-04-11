@@ -12,7 +12,7 @@ import (
 	"github.com/muesli/termenv"
 	"gopkg.in/telebot.v4"
 
-	"classifier/pkg/utils"
+	"classifier/pkg/lib"
 )
 
 type Bot struct {
@@ -22,7 +22,7 @@ type Bot struct {
 	sid         string
 	refreshRate time.Duration
 	classify    bool
-	crypto      *utils.Crypto
+	crypto      *lib.Crypto
 	key         string
 
 	mu     sync.Mutex
@@ -51,7 +51,7 @@ func New(token string, sid string, refreshRate time.Duration, classify bool, enc
 	)
 	logger.SetColorProfile(termenv.TrueColor)
 
-	crypto, err := utils.NewCrypto(encryptionKey)
+	crypto, err := lib.NewCrypto(encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("error creating crypto: %w", err)
 	}

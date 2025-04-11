@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"classifier/pkg/utils"
+	"classifier/pkg/lib"
 )
 
 //go:embed index.html
@@ -19,8 +19,8 @@ var index []byte
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	const indexPath = "pkg/server/index.html"
-	if fileExists(indexPath) {
+	const indexPath = "../../pkg/server/index.html"
+	if lib.FileExists(indexPath) {
 		http.ServeFile(w, r, indexPath)
 	} else {
 		w.Write(index)
@@ -42,13 +42,13 @@ func serveEncryptedFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	crypto, err := utils.NewCrypto(decryptKey)
+	crypto, err := lib.NewCrypto(decryptKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	file, err := openFile(path, crypto)
+	file, err := lib.OpenFile(path, crypto)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

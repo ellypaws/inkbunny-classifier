@@ -1,11 +1,20 @@
-package utils
+package lib
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
+	"fmt"
 	"io"
+	"io/fs"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 // deriveKey creates a 32-byte key from the input string using SHA-256.
@@ -110,3 +119,79 @@ func (c *Crypto) Decoder(r io.Reader) (io.Reader, error) {
 		stream: stream,
 	}, nil
 }
+
+var client = http.Client{Timeout: 30 * time.Second}
+
+func DownloadFile(ctx context.Context, path, folder string, crypto *Crypto) (io.ReadCloser, error) {
+	u, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing URL: %w", err)
+	}
+	fileName := filepath.Join(folder, filepath.Base(u.Path))
+	if FileExists(fileName) {
+		return OpenFile(fileName, crypto)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error downloading file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	err = os.MkdirAll(folder, 0755)
+	if err != nil {
+		return nil, fmt.Errorf("error creating folder: %w", err)
+	}
+
+	out, err := os.Create(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("error creating file: %w", err)
+	}
+
+	encoder, err := crypto.Encoder(out)
+	if err != nil {
+		out.Close()
+		return nil, fmt.Errorf("error creating encoder: %w", err)
+	}
+
+	_, err = io.Copy(encoder, resp.Body)
+	if err != nil {
+		out.Close()
+		return nil, fmt.Errorf("error writing to file: %w", err)
+	}
+
+	return OpenFile(fileName, crypto)
+}
+
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return !errors.Is(err, fs.ErrNotExist)
+}
+
+func OpenFile(path string, crypto *Crypto) (io.ReadCloser, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+
+	decoder, err := crypto.Decoder(file)
+	if err != nil {
+		return nil, fmt.Errorf("error making decoder: %w", err)
+	}
+
+	return &closer{decoder, file}, nil
+}
+
+type closer struct {
+	decoder io.Reader
+	closer  io.Closer
+}
+
+func (c *closer) Read(p []byte) (n int, err error) { return c.decoder.Read(p) }
+
+func (c *closer) Close() error { return c.closer.Close() }
