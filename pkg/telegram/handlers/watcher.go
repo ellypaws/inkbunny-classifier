@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/ellypaws/inkbunny/api"
 
 	"classifier/pkg/classify"
@@ -45,7 +44,7 @@ func (b *Bot) Watcher() error {
 			}
 			mu.RUnlock()
 
-			log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
+			b.logger.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
 
 			file, err := lib.DownloadFile(ctx, submission.FileURLFull, filepath.Join("inkbunny", submission.Username), b.crypto)
 			if err != nil {
