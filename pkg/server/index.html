@@ -352,6 +352,10 @@
 <script>
     const serverURL = window.location.origin;
 
+    /********************
+     * Type Definitions *
+     ********************/
+
     /**
      * @typedef {Object} ColorResult
      * @property {boolean} found - Whether the target color was found within threshold
@@ -359,8 +363,8 @@
      */
 
     /**
-     * @typedef {Object} Prediction
      * A mapping of prediction classes (keys) to their probability scores.
+     * @typedef {Object} Prediction
      */
 
     /**
@@ -371,26 +375,43 @@
      * @property {Prediction?} [prediction] - Classification prediction results, if enabled
      */
 
-    // Global variables
-    /** @type {Result[]} */
+    /********************
+     * Global variables *
+     ********************/
+
+    /**
+     * Global array to hold all results
+     * @type {Result[]}
+     */
     const allResults = [];
+    /**
+     * Global set of available prediction classes (defaults plus any new ones)
+     * @type {Set<string>}
+     */
+    const availableClasses = new Set(['cub', 'anime', 'adult']);
+    /**
+     * Global object for class colors and tracking defined CSS
+     * @type {Object<string, string>}
+     */
+    const classColors = {};
+    /**
+     * Global set to track which classes have been defined in CSS
+     * @type {Set<string>}
+     */
+    const definedClasses = new Set();
+
+    /*****************************************
+     * Global variables for Local Files Mode *
+     * ***************************************/
+
     /** @type {HTMLElement} */
     const resultsDiv = document.getElementById('results');
     /** @type {HTMLButtonElement} */
     const startButton = document.getElementById('startButton');
     /** @type {HTMLButtonElement} */
     const cancelButton = document.getElementById('cancelBtn');
-    /** @type {HTMLButtonElement} */
-    const pruneButton = document.getElementById('pruneButton');
     /** @type {EventSource|null} */
     let source = null; // will hold the EventSource for local files
-
-    // Global variables for Watch Mode
-    const startWatchButton = document.getElementById('startWatchButton');
-    const cancelWatchButton = document.getElementById('cancelWatchBtn');
-    let watchSource = null;
-
-    // Get references for slider pairs
     /** @type {HTMLInputElement} */
     const thresholdNumber = document.getElementById('thresholdNumber');
     /** @type {HTMLInputElement} */
@@ -399,29 +420,37 @@
     const filterDistanceNumber = document.getElementById('filterDistanceNumber');
     /** @type {HTMLInputElement} */
     const filterDistanceRange = document.getElementById('filterDistanceRange');
-
-    // Global Minimum Filter elements
-    const enableGlobalMin = document.getElementById('enableGlobalMin');
-    const globalMinFilterNumber = document.getElementById('globalMinFilterNumber');
-    const globalMinFilterRange = document.getElementById('globalMinFilterRange');
-
-    // Checkboxes
+    /** @type {HTMLButtonElement} */
     const enableDistance = document.getElementById('enableDistance');
-    /** @type {HTMLInputElement} */
-    const enableClassify = document.getElementById('enableClassify');
-    const enableFiltersCheckbox = document.getElementById('enableFilters');
-    const filterCountSpan = document.getElementById('filterCount');
-
     /** @type {HTMLElement} */
     const colorDistanceColumn = document.getElementById('colorDistanceColumn');
+
+    /***********************************
+     * Global variables for Watch Mode *
+     * *********************************/
+
+    /** @type {HTMLButtonElement} */
+    const startWatchButton = document.getElementById('startWatchButton');
+    /** @type {HTMLButtonElement} */
+    const cancelWatchButton = document.getElementById('cancelWatchBtn');
+    /** @type {HTMLButtonElement} */
+    const pruneButton = document.getElementById('pruneButton');
+    /** @type {EventSource|null} */
+    let watchSource = null;
+    /** @type {HTMLButtonElement} */
+    const enableGlobalMin = document.getElementById('enableGlobalMin');
+    /** @type {HTMLInputElement} */
+    const globalMinFilterNumber = document.getElementById('globalMinFilterNumber');
+    /** @type {HTMLInputElement} */
+    const globalMinFilterRange = document.getElementById('globalMinFilterRange');
+    /** @type {HTMLInputElement} */
+    const enableClassify = document.getElementById('enableClassify');
+    /** @type {HTMLInputElement} */
+    const enableFiltersCheckbox = document.getElementById('enableFilters');
+    /** @type {HTMLElement} */
+    const filterCountSpan = document.getElementById('filterCount');
     /** @type {HTMLElement} */
     const classifierColumn = document.getElementById('classifierColumn');
-
-    // Global set of available prediction classes (defaults plus any new ones)
-    const availableClasses = new Set(['cub', 'anime', 'adult']);
-    // Global object for class colors and tracking defined CSS
-    const classColors = {};
-    const definedClasses = new Set();
 
     /**
      * Loads a setting from localStorage into the specified input.
