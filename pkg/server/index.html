@@ -104,9 +104,17 @@
         }
 
         .columns {
+            margin: 0 auto;
             display: flex;
             gap: 1em;
             flex-wrap: wrap;
+            max-width: max-content;
+        }
+
+        @media screen and (max-width: 1080px) {
+            .columns {
+                flex-direction: column;
+            }
         }
 
         .column {
