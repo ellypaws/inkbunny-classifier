@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"time"
 
 	"classifier/pkg/lib"
@@ -16,13 +15,12 @@ import (
 // DownloadEncrypt downloads a file from the given URL and saves it to the specified folder.
 // After saving the file, it immediately opens it using [lib.Crypto.Open].
 // If the file already exists, it calls [lib.Crypto.Open].
-func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, path, folder string) (*lib.CryptoFile, error) {
-	u, err := url.Parse(path)
+func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, link, fileName string) (*lib.CryptoFile, error) {
+	u, err := url.Parse(link)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing URL: %w", err)
 	}
 
-	fileName := filepath.Join(folder, filepath.Base(u.Path))
 	if lib.FileExists(fileName) {
 		return crypto.Open(fileName)
 	}
@@ -37,11 +35,6 @@ func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, path, folder strin
 		return nil, fmt.Errorf("error downloading file: %w", err)
 	}
 	defer resp.Body.Close()
-
-	err = os.MkdirAll(folder, 0755)
-	if err != nil {
-		return nil, fmt.Errorf("error creating folder: %w", err)
-	}
 
 	out, err := os.Create(fileName)
 	if err != nil {

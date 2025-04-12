@@ -3,7 +3,9 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -11,7 +13,6 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/ellypaws/inkbunny/api"
 
-	"classifier/pkg/classify"
 	"classifier/pkg/lib"
 	"classifier/pkg/utils"
 )
@@ -22,19 +23,30 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	shouldClassify := r.URL.Query().Get("classify") == "true"
 	refreshRate := r.URL.Query().Get("refresh_rate_seconds")
 
-	if !shouldClassify {
-		return
-	}
-
 	crypto, err := lib.NewCrypto(encryptKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	readSubs := make(map[string]classify.Prediction)
+	distanceConfig, err := newDistanceConfig(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	classifyConfig := classifyConfig{
+		enabled:   shouldClassify,
+		semaphore: make(chan struct{}, runtime.NumCPU()*2),
+	}
+
+	if !distanceConfig.enabled && !classifyConfig.enabled {
+		return
+	}
+
+	readSubs := make(map[string]*Result)
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(50, func(jobs <-chan api.SubmissionSearchList, yield func(Result)) {
+	worker := utils.NewWorkerPool(50, func(jobs <-chan api.SubmissionSearchList, yield func(*Result)) {
 		for submission := range jobs {
 			if !utils.IsImage(submission.FileURLFull) {
 				continue
@@ -48,31 +60,40 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 
 			log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
 
-			file, err := utils.DownloadEncrypt(r.Context(), crypto, submission.FileURLFull, filepath.Join("inkbunny", submission.Username))
+			folder := filepath.Join("inkbunny", submission.Username)
+			err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
+			if err != nil {
+				log.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
+			}
+
+			fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
+			_, err = utils.DownloadEncrypt(r.Context(), crypto, submission.FileURLFull, fileName)
 			if err != nil {
 				log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 				continue
 			}
 			log.Debugf("Downloaded submission: %v", submission.FileURLFull)
 
-			prediction, err := classify.DefaultCache.Predict(r.Context(), submission.FileURLFull, file)
-			file.Close()
+			result, err := Handle(r.Context(), fileName, crypto.Open, distanceConfig, classifyConfig)
+
 			if err != nil {
-				log.Errorf("Error predicting submission: %v", err)
+				log.Errorf("Error processing submission %s: %v", submission.SubmissionID, err)
 				continue
 			}
-			log.Infof("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
-
-			go func() { mu.Lock(); readSubs[submission.SubmissionID] = prediction; mu.Unlock() }()
+			if result == nil {
+				continue
+			}
+			if result.Prediction == nil && result.Color == nil {
+				continue
+			}
 
 			if encryptKey != "" {
-				submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, encryptKey)
+				result.Path = fmt.Sprintf("%s?key=%s", submission.FileURLFull, encryptKey)
 			}
-			yield(Result{
-				Path:       submission.FileURLFull,
-				URL:        fmt.Sprintf("https://inkbunny.net/s/%s", submission.SubmissionID),
-				Prediction: &prediction,
-			})
+			result.URL = fmt.Sprintf("https://inkbunny.net/s/%s", submission.SubmissionID)
+
+			yield(result)
+			go func() { mu.Lock(); readSubs[submission.SubmissionID] = result; mu.Unlock() }()
 		}
 	})
 
@@ -108,6 +129,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	worker.Work()
-	Handle(w, r, worker.Iter())
+	log.Info("Starting watcher", "distance", distanceConfig.enabled, "classify", shouldClassify)
+	Respond(w, r, worker.Iter())
 	log.Info("Finished watching for new submissions")
 }

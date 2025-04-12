@@ -45,7 +45,14 @@ func (b *Bot) Watcher() error {
 
 			b.logger.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
 
-			file, err := utils.DownloadEncrypt(ctx, b.crypto, submission.FileURLFull, filepath.Join("inkbunny", submission.Username))
+			folder := filepath.Join("inkbunny", submission.Username)
+			err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
+			if err != nil {
+				b.logger.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
+			}
+
+			fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
+			file, err := utils.DownloadEncrypt(ctx, b.crypto, submission.FileURLFull, fileName)
 			if err != nil {
 				b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 				continue
@@ -107,16 +114,16 @@ func (b *Bot) Watcher() error {
 	for res := range worker.Work() {
 		var highest *string
 		for _, class := range classes {
-			if prediction := res.Response.Prediction[class]; prediction > 0.5 {
+			if prediction := res.Prediction[class]; prediction > 0.5 {
 				if highest == nil {
 					highest = &class
-				} else if prediction > res.Response.Prediction[*highest] {
+				} else if prediction > res.Prediction[*highest] {
 					highest = &class
 				}
 			}
 		}
 		if highest != nil {
-			_, err := b.Notify(fmt.Sprintf("⚠️ Detected class %q (%d%%) for https://inkbunny.net/s/%s by %q", *highest, int(res.Response.Prediction[*highest]*100), res.Response.Submission.SubmissionID, res.Response.Submission.Username))
+			_, err := b.Notify(fmt.Sprintf("⚠️ Detected class %q (%d%%) for https://inkbunny.net/s/%s by %q", *highest, int(res.Prediction[*highest]*100), res.Submission.SubmissionID, res.Submission.Username))
 			if err != nil {
 				b.logger.Errorf("Error sending message to telegram: %v", err)
 			}

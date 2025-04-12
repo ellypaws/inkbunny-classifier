@@ -424,7 +424,7 @@
     const filterDistanceNumber = document.getElementById('filterDistanceNumber');
     /** @type {HTMLInputElement} */
     const filterDistanceRange = document.getElementById('filterDistanceRange');
-    /** @type {HTMLButtonElement} */
+    /** @type {HTMLInputElement} */
     const enableDistance = document.getElementById('enableDistance');
     /** @type {HTMLElement} */
     const colorDistanceColumn = document.getElementById('colorDistanceColumn');
@@ -1185,6 +1185,9 @@
         const sid = document.getElementById('sid').value;
         const encryptKey = document.getElementById('encryptKey').value;
         const refreshRate = document.getElementById('refreshRate').value;
+        const color = document.getElementById('color').value;
+        const threshold = parseFloat(thresholdNumber.value) / 100;
+        const metric = document.getElementById('metric').value;
 
         // Build query string specific for watch mode.
         /** @type {Object<string, string|number|boolean>} */
@@ -1192,6 +1195,10 @@
             sid,
             encrypt_key: encryptKey,
             refresh_rate_seconds: refreshRate,
+            color,
+            threshold,
+            metric,
+            distance: enableDistance.checked,
             classify: enableClassify.checked,
         }
         const path = getPath(`${serverURL}/watch`, params);
