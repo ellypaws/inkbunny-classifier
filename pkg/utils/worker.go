@@ -31,8 +31,7 @@ type Response[R any] struct {
 }
 
 // NewWorkerPool creates a new worker pool with the given number of workers.
-// The job channel is buffered to the number of workers, but the response channel is not.
-// This means that the work function can potentially not start for slow readers.
+// The job channel is buffered to the number of workers.
 // The work function should use the channel to receive jobs, and use the callback function to send responses.
 func NewWorkerPool[J any, R any](workers int, work func(<-chan J, func(R))) WorkerPool[J, R] {
 	return WorkerPool[J, R]{
@@ -67,16 +66,19 @@ func (p *WorkerPool[J, R]) do() {
 				job <- req.job
 				close(job)
 				p.work(job, func(r R) {
-					resp := Response[R]{
-						I:        int(p.i.Add(1) - 1),
-						WorkerID: id,
-						Response: r,
-					}
-					select {
-					case p.responses <- resp:
-					case req.promise <- r:
-						close(req.promise)
-					}
+					workSet.Add(1)
+					go func() {
+						select {
+						case p.responses <- Response[R]{
+							I:        int(p.i.Add(1) - 1),
+							WorkerID: id,
+							Response: r,
+						}:
+						case req.promise <- r:
+							close(req.promise)
+						}
+						workSet.Done()
+					}()
 				})
 			}
 			workSet.Done()
