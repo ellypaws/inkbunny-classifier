@@ -80,5 +80,5 @@ func getImagePath(path string) (string, string) {
 	if err != nil {
 		return "", ""
 	}
-	return filepath.Join("inkbunny", getArtist(u.String()), filepath.Base(u.Path)), u.Query().Get("decrypt_key")
+	return filepath.Join("inkbunny", getArtist(u.String()), filepath.Base(u.Path)), u.Query().Get("key")
 }

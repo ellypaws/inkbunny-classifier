@@ -65,7 +65,7 @@ func (b *Bot) Watcher() error {
 			mu.Unlock()
 
 			if b.key != "" {
-				submission.FileURLFull = fmt.Sprintf("%s?decrypt_key=%s", submission.FileURLFull, b.key)
+				submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.key)
 			}
 			yield(Result{
 				Path:       submission.FileURLFull,
