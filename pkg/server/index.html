@@ -690,8 +690,7 @@
             }
 
             // Get current filter values (convert percentage inputs to decimals)
-            const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
-            const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesColor = evaluateColor(result);
             const passesFilters = evaluateFilterRules(result);
             let currentCount = parseInt(filterCountSpan.textContent.match(/\d+/)[0]);
             if (passesColor && passesFilters) {
@@ -959,6 +958,16 @@
     document.getElementById('addFilterRule').addEventListener('click', () => addFilterRule());
 
     /**
+     * Creates a result item element for displaying results.
+     * @param {Result} result - The result object to display.
+     * @returns {boolean} True if the result passes the current filters; false otherwise.
+     */
+    function evaluateColor(result) {
+        const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
+        return result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+    }
+
+    /**
      * Evaluates if a result passes all current filter rules.
      * @param {Result} result - The result object to evaluate.
      * @returns {boolean} True if all rules pass; false otherwise.
@@ -1004,10 +1013,9 @@
     }
 
     pruneButton.addEventListener('click', () => {
-        const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
         for (let i = allResults.length - 1; i >= 0; i--) {
             const result = allResults[i];
-            const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesColor = evaluateColor(result);
             if (!(passesColor && evaluateFilterRules(result))) {
                 allResults.splice(i, 1);
             }
@@ -1023,7 +1031,7 @@
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
         let passCount = 0;
         allResults.forEach((result) => {
-            const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+            const passesColor = evaluateColor(result);
             const passesFilters = evaluateFilterRules(result);
             if (passesColor && passesFilters) {
                 const itemDiv = createResultItem(result);
