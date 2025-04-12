@@ -48,7 +48,6 @@ func (p *WorkerPool[_, R]) do() {
 	workSet.Add(p.workers)
 	for id := range p.workers {
 		go func() {
-			defer workSet.Done()
 			p.work(p.jobs, func(r R) {
 				p.responses <- Response[R]{
 					I:        int(p.i.Add(1) - 1),
@@ -56,6 +55,7 @@ func (p *WorkerPool[_, R]) do() {
 					Response: r,
 				}
 			})
+			workSet.Done()
 		}()
 	}
 
