@@ -53,3 +53,25 @@ func TestCrypto_Decoder(t *testing.T) {
 		t.Fatalf("decrypt failed: %v", err)
 	}
 }
+
+func TestCrypto_Seek(t *testing.T) {
+	t.Run("encrypted file", TestCrypto_Encoder)
+	encrypted, err := crypto.Open("encrypted.png")
+	if err != nil {
+		t.Fatalf("error opening encrypted file: %v", err)
+	}
+	defer encrypted.Close()
+
+	_, err = encrypted.Seek(0, io.SeekStart)
+	if err != nil {
+		t.Fatalf("error seeking encrypted file: %v", err)
+	}
+
+	decryptedAfterSeek, err := os.Create("decrypted_after_seek.png")
+	if err != nil {
+		t.Fatalf("error creating decrypted after seek: %v", err)
+	}
+	defer decryptedAfterSeek.Close()
+
+	_, err = io.Copy(decryptedAfterSeek, encrypted)
+}
