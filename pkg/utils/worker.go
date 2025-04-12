@@ -33,6 +33,7 @@ type Response[R any] struct {
 // NewWorkerPool creates a new worker pool with the given number of workers.
 // The job channel is buffered to the number of workers.
 // The work function should use the channel to receive jobs, and use the callback function to send responses.
+// Inside the work function, the callback function should only be called synchronously or the program might panic.
 func NewWorkerPool[J any, R any](workers int, work func(<-chan J, func(R))) WorkerPool[J, R] {
 	return WorkerPool[J, R]{
 		workers:   workers,
