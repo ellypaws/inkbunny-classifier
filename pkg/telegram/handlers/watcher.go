@@ -60,9 +60,7 @@ func (b *Bot) Watcher() error {
 			}
 			b.logger.Infof("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
 
-			mu.Lock()
-			readSubs[submission.SubmissionID] = prediction
-			mu.Unlock()
+			go func() { mu.Lock(); readSubs[submission.SubmissionID] = prediction; mu.Unlock() }()
 
 			if b.key != "" {
 				submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.key)

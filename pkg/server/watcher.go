@@ -95,7 +95,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			}
 			response, err := user.SearchSubmissions(request)
 			if err != nil {
-				fmt.Println(err)
+				log.Errorf("Error searching submissions: %v", err)
 			}
 			worker.Add(response.Submissions...)
 			select {
