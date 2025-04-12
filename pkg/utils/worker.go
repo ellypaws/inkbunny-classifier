@@ -14,9 +14,16 @@ type WorkerPool[J any, R any] struct {
 	work    func(<-chan J, func(R))
 
 	closed    bool
-	jobs      chan J
+	jobs      chan jobRequest[J, R]
 	responses chan Response[R]
 }
+
+// jobRequest wraps a job and optionally a promise channel.
+type jobRequest[J any, R any] struct {
+	job     J
+	promise chan R // nil if not a promise job
+}
+
 type Response[R any] struct {
 	I        int
 	WorkerID int
@@ -24,11 +31,16 @@ type Response[R any] struct {
 }
 
 // NewWorkerPool creates a new worker pool with the given number of workers.
-// The channels are buffered to the number of workers.
+// The job channel is buffered to the number of workers, but the response channel is not.
+// This means that the work function can potentially not start for slow readers.
 // The work function should use the channel to receive jobs, and use the callback function to send responses.
-// WorkerPool.Work can be called concurrently.
 func NewWorkerPool[J any, R any](workers int, work func(<-chan J, func(R))) WorkerPool[J, R] {
-	return WorkerPool[J, R]{workers: workers, work: work, jobs: make(chan J, workers), responses: make(chan Response[R], workers)}
+	return WorkerPool[J, R]{
+		workers:   workers,
+		work:      work,
+		jobs:      make(chan jobRequest[J, R], workers),
+		responses: make(chan Response[R]),
+	}
 }
 
 // Cap returns the capacity of the worker pool.
@@ -38,23 +50,35 @@ func (p *WorkerPool[_, _]) Cap() int { return p.workers }
 func (p *WorkerPool[_, _]) Closed() bool { return p.closed }
 
 // Work starts the worker pool and returns a channel of Response[R] to receive results.
+// Can be called concurrently to receive in multiple places.
 func (p *WorkerPool[_, R]) Work() <-chan Response[R] {
 	p.working.Do(p.do)
 	return p.responses
 }
 
-func (p *WorkerPool[_, R]) do() {
+// do launches worker goroutines that consume jobRequests.
+func (p *WorkerPool[J, R]) do() {
 	var workSet sync.WaitGroup
 	workSet.Add(p.workers)
 	for id := range p.workers {
 		go func() {
-			p.work(p.jobs, func(r R) {
-				p.responses <- Response[R]{
-					I:        int(p.i.Add(1) - 1),
-					WorkerID: id,
-					Response: r,
-				}
-			})
+			for req := range p.jobs {
+				job := make(chan J, 1)
+				job <- req.job
+				close(job)
+				p.work(job, func(r R) {
+					resp := Response[R]{
+						I:        int(p.i.Add(1) - 1),
+						WorkerID: id,
+						Response: r,
+					}
+					select {
+					case p.responses <- resp:
+					case req.promise <- r:
+						close(req.promise)
+					}
+				})
+			}
 			workSet.Done()
 		}()
 	}
@@ -67,31 +91,39 @@ func (p *WorkerPool[_, R]) do() {
 }
 
 // Add adds jobs to the worker pool. It blocks if the pool is full.
-func (p *WorkerPool[J, _]) Add(j ...J) {
-	for _, j := range j {
-		p.jobs <- j
+func (p *WorkerPool[J, R]) Add(j ...J) {
+	for _, job := range j {
+		p.jobs <- jobRequest[J, R]{job: job}
 	}
 }
 
+// Promise enqueues a job with an attached promise channel and returns that channel.
+// The promise channel is buffered with one element.
+func (p *WorkerPool[J, R]) Promise(j J) <-chan R {
+	promiseCh := make(chan R)
+	p.jobs <- jobRequest[J, R]{job: j, promise: promiseCh}
+	return promiseCh
+}
+
 // AddIter adds jobs to the worker pool from an iterator. It blocks if the pool is full.
-func (p *WorkerPool[J, _]) AddIter(j iter.Seq[J]) {
-	for j := range j {
-		p.jobs <- j
+func (p *WorkerPool[J, R]) AddIter(j iter.Seq[J]) {
+	for job := range j {
+		p.jobs <- jobRequest[J, R]{job: job}
 	}
 }
 
 // AddAndClose adds jobs to the worker pool and calls Close it after all jobs are added. It blocks if the pool is full.
-func (p *WorkerPool[J, _]) AddAndClose(j ...J) {
-	for _, j := range j {
-		p.jobs <- j
+func (p *WorkerPool[J, R]) AddAndClose(j ...J) {
+	for _, job := range j {
+		p.jobs <- jobRequest[J, R]{job: job}
 	}
 	p.Close()
 }
 
 // AddAndCloseIter adds jobs to the worker pool from an iterator and closes it after all jobs are added.
-func (p *WorkerPool[J, _]) AddAndCloseIter(j iter.Seq[J]) {
-	for j := range j {
-		p.jobs <- j
+func (p *WorkerPool[J, R]) AddAndCloseIter(j iter.Seq[J]) {
+	for job := range j {
+		p.jobs <- jobRequest[J, R]{job: job}
 	}
 	p.Close()
 }
