@@ -3,31 +3,23 @@ package utils
 import (
 	"iter"
 	"sync"
-	"sync/atomic"
 )
 
 type WorkerPool[J any, R any] struct {
 	workers int
 
-	i       atomic.Int64
 	working sync.Once
 	work    func(<-chan J, func(R))
 
 	closed    bool
 	jobs      chan jobRequest[J, R]
-	responses chan Response[R]
+	responses chan R
 }
 
 // jobRequest wraps a job and optionally a promise channel.
 type jobRequest[J any, R any] struct {
 	job     J
 	promise chan R // nil if not a promise job
-}
-
-type Response[R any] struct {
-	I        int
-	WorkerID int
-	Response R
 }
 
 // NewWorkerPool creates a new worker pool with the given number of workers.
@@ -39,7 +31,7 @@ func NewWorkerPool[J any, R any](workers int, work func(<-chan J, func(R))) Work
 		workers:   workers,
 		work:      work,
 		jobs:      make(chan jobRequest[J, R], workers),
-		responses: make(chan Response[R]),
+		responses: make(chan R),
 	}
 }
 
@@ -51,7 +43,7 @@ func (p *WorkerPool[_, _]) Closed() bool { return p.closed }
 
 // Work starts the worker pool and returns a channel of Response[R] to receive results.
 // Can be called concurrently to receive in multiple places.
-func (p *WorkerPool[_, R]) Work() <-chan Response[R] {
+func (p *WorkerPool[_, R]) Work() <-chan R {
 	p.working.Do(p.do)
 	return p.responses
 }
@@ -60,7 +52,7 @@ func (p *WorkerPool[_, R]) Work() <-chan Response[R] {
 func (p *WorkerPool[J, R]) do() {
 	var workSet sync.WaitGroup
 	workSet.Add(p.workers)
-	for id := range p.workers {
+	for range p.workers {
 		go func() {
 			for req := range p.jobs {
 				job := make(chan J, 1)
@@ -70,11 +62,7 @@ func (p *WorkerPool[J, R]) do() {
 					workSet.Add(1)
 					go func() {
 						select {
-						case p.responses <- Response[R]{
-							I:        int(p.i.Add(1) - 1),
-							WorkerID: id,
-							Response: r,
-						}:
+						case p.responses <- r:
 						case req.promise <- r:
 							close(req.promise)
 						}
@@ -143,7 +131,7 @@ func (p *WorkerPool[_, _]) Close() {
 func (p *WorkerPool[_, R]) Iter() iter.Seq[R] {
 	return func(yield func(R) bool) {
 		for r := range p.responses {
-			if !yield(r.Response) {
+			if !yield(r) {
 				return
 			}
 		}
@@ -153,11 +141,13 @@ func (p *WorkerPool[_, R]) Iter() iter.Seq[R] {
 // Iter2 returns an iterator that yields the results R from the worker pool.
 // It returns the index of the result and the result itself.
 func (p *WorkerPool[_, R]) Iter2() iter.Seq2[int, R] {
+	var i int
 	return func(yield func(int, R) bool) {
 		for r := range p.responses {
-			if !yield(r.I, r.Response) {
+			if !yield(i, r) {
 				return
 			}
+			i++
 		}
 	}
 }
@@ -169,20 +159,6 @@ func Iter[R any](results <-chan R) iter.Seq[R] {
 	return func(yield func(R) bool) {
 		for res := range results {
 			if !yield(res) {
-				return
-			}
-			i++
-		}
-	}
-}
-
-// Wrap returns an iterator that yields the results from a channel and wraps it in Response.
-// It returns the index of the result and the result itself.
-func Wrap[T any](results <-chan T) iter.Seq[Response[T]] {
-	var i int
-	return func(yield func(Response[T]) bool) {
-		for res := range results {
-			if !yield(Response[T]{I: i, Response: res}) {
 				return
 			}
 			i++
