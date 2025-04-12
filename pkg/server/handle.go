@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-func Handle(w http.ResponseWriter, r *http.Request, worker iter.Seq[Result]) {
+func Handle[T any](w http.ResponseWriter, r *http.Request, worker iter.Seq[T]) {
 	enc := json.NewEncoder(w)
 	if flusher, ok := w.(http.Flusher); ok {
 		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
@@ -39,7 +39,7 @@ func Handle(w http.ResponseWriter, r *http.Request, worker iter.Seq[Result]) {
 			log.Error("error sending exit event", "err", err)
 		}
 	} else {
-		var allResults []Result
+		var allResults []T
 		for res := range worker {
 			select {
 			case <-r.Context().Done():
