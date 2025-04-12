@@ -74,6 +74,7 @@ func (b *Bot) Watcher() error {
 	})
 
 	go func() {
+		defer worker.Close()
 		for ctx.Err() == nil {
 			select {
 			case <-ctx.Done():
@@ -97,7 +98,6 @@ func (b *Bot) Watcher() error {
 				continue
 			}
 		}
-		worker.Close()
 	}()
 
 	classes := []string{"cub"}

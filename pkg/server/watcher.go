@@ -82,6 +82,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		if t, err := strconv.ParseInt(refreshRate, 10, 64); err != nil && t > 0 {
 			timeout = time.Duration(t) * time.Second
 		}
+		defer worker.Close()
 		for r.Context().Err() == nil {
 			select {
 			case <-r.Context().Done():
@@ -105,7 +106,6 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		worker.Close()
 	}()
 
 	enc := json.NewEncoder(w)
