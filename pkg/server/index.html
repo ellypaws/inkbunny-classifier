@@ -964,6 +964,8 @@
      * @returns {boolean} True if all rules pass; false otherwise.
      */
     function evaluateFilterRules(result) {
+        if (!enableFiltersCheckbox.checked) return true;
+        if (!result.prediction) return true;
         const rows = document.querySelectorAll('.filterRuleRow');
         if (rows.length === 0) return true; // No rules means every result passes.
         let overallMatch = null;
@@ -1023,8 +1025,7 @@
         allResults.forEach((result) => {
             const passesColor = result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
             const passesFilters = evaluateFilterRules(result);
-            const passes = enableFiltersCheckbox.checked ? (passesColor && passesFilters) : true;
-            if (passes) {
+            if (passesColor && passesFilters) {
                 const itemDiv = createResultItem(result);
                 resultsDiv.insertBefore(itemDiv, resultsDiv.firstChild);
                 passCount++;
