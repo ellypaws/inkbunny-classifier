@@ -143,7 +143,22 @@ type CryptoFile struct {
 func (c *CryptoFile) Read(p []byte) (n int, err error) { return c.decoder.Read(p) }
 
 func (c *CryptoFile) Seek(offset int64, whence int) (int64, error) {
-	return c.file.Seek(offset+aes.BlockSize, whence)
+	switch whence {
+	case io.SeekStart:
+		offset += aes.BlockSize
+	case io.SeekCurrent:
+		break
+	case io.SeekEnd:
+		offset -= aes.BlockSize
+	default:
+		return 0, fmt.Errorf("invalid whence: %d", whence)
+	}
+
+	pos, err := c.file.Seek(offset, whence)
+	if err != nil {
+		return 0, err
+	}
+	return pos - aes.BlockSize, nil
 }
 
 func (c *CryptoFile) Close() error { return c.file.Close() }
