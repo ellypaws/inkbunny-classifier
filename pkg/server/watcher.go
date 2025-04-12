@@ -134,6 +134,9 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 				flusher.Flush()
 			}
 		}
+		if _, err := w.Write([]byte("event: exit\ndata: exit\n\n")); err != nil {
+			log.Error("error sending exit event", "err", err)
+		}
 	} else {
 		var allResults []Result
 		for res := range worker.Work() {
