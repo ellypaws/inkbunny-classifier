@@ -158,6 +158,11 @@ func (c *CryptoFile) Seek(offset int64, whence int) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	if pos < aes.BlockSize {
+		return 0, fmt.Errorf("invalid seek: resulting decrypted position (%d) is negative", pos)
+	}
+
 	return pos - aes.BlockSize, nil
 }
 
