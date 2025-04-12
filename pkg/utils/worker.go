@@ -80,14 +80,12 @@ func (p *WorkerPool[J, _]) AddIter(j iter.Seq[J]) {
 	}
 }
 
-// AddAndClose adds jobs to the worker pool and calls Close it after all jobs are added.
+// AddAndClose adds jobs to the worker pool and calls Close it after all jobs are added. It blocks if the pool is full.
 func (p *WorkerPool[J, _]) AddAndClose(j ...J) {
-	go func() {
-		for _, j := range j {
-			p.jobs <- j
-		}
-		p.Close()
-	}()
+	for _, j := range j {
+		p.jobs <- j
+	}
+	p.Close()
 }
 
 // AddAndCloseIter adds jobs to the worker pool from an iterator and closes it after all jobs are added.
