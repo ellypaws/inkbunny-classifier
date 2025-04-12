@@ -46,55 +46,53 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 
 	readSubs := make(map[string]*Result)
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(50, func(jobs <-chan api.SubmissionSearchList, yield func(*Result)) {
-		for submission := range jobs {
-			if !utils.IsImage(submission.FileURLFull) {
-				continue
-			}
-			mu.RLock()
-			if _, ok := readSubs[submission.SubmissionID]; ok {
-				mu.RUnlock()
-				continue
-			}
-			mu.RUnlock()
-
-			log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
-
-			folder := filepath.Join("inkbunny", submission.Username)
-			err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
-			if err != nil {
-				log.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
-			}
-
-			fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
-			_, err = utils.DownloadEncrypt(r.Context(), crypto, submission.FileURLFull, fileName)
-			if err != nil {
-				log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
-				continue
-			}
-			log.Debugf("Downloaded submission: %v", submission.FileURLFull)
-
-			result, err := Handle(r.Context(), fileName, crypto.Open, distanceConfig, classifyConfig)
-
-			if err != nil {
-				log.Errorf("Error processing submission %s: %v", submission.SubmissionID, err)
-				continue
-			}
-			if result == nil {
-				continue
-			}
-			if result.Prediction == nil && result.Color == nil {
-				continue
-			}
-
-			if encryptKey != "" {
-				result.Path = fmt.Sprintf("%s?key=%s", submission.FileURLFull, encryptKey)
-			}
-			result.URL = fmt.Sprintf("https://inkbunny.net/s/%s", submission.SubmissionID)
-
-			yield(result)
-			go func() { mu.Lock(); readSubs[submission.SubmissionID] = result; mu.Unlock() }()
+	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList, yield func(*Result)) {
+		if !utils.IsImage(submission.FileURLFull) {
+			return
 		}
+		mu.RLock()
+		if _, ok := readSubs[submission.SubmissionID]; ok {
+			mu.RUnlock()
+			return
+		}
+		mu.RUnlock()
+
+		log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
+
+		folder := filepath.Join("inkbunny", submission.Username)
+		err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
+		if err != nil {
+			log.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
+		}
+
+		fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
+		_, err = utils.DownloadEncrypt(r.Context(), crypto, submission.FileURLFull, fileName)
+		if err != nil {
+			log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
+			return
+		}
+		log.Debugf("Downloaded submission: %v", submission.FileURLFull)
+
+		result, err := Handle(r.Context(), fileName, crypto.Open, distanceConfig, classifyConfig)
+
+		if err != nil {
+			log.Errorf("Error processing submission %s: %v", submission.SubmissionID, err)
+			return
+		}
+		if result == nil {
+			return
+		}
+		if result.Prediction == nil && result.Color == nil {
+			return
+		}
+
+		if encryptKey != "" {
+			result.Path = fmt.Sprintf("%s?key=%s", submission.FileURLFull, encryptKey)
+		}
+		result.URL = fmt.Sprintf("https://inkbunny.net/s/%s", submission.SubmissionID)
+
+		yield(result)
+		go func() { mu.Lock(); readSubs[submission.SubmissionID] = result; mu.Unlock() }()
 	})
 
 	go func() {

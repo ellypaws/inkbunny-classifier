@@ -31,53 +31,51 @@ func (b *Bot) Watcher() error {
 
 	readSubs := make(map[string]classify.Prediction)
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(50, func(jobs <-chan api.SubmissionSearchList, yield func(Result)) {
-		for submission := range jobs {
-			if !utils.IsImage(submission.FileURLFull) {
-				continue
-			}
-			mu.RLock()
-			if _, ok := readSubs[submission.SubmissionID]; ok {
-				mu.RUnlock()
-				continue
-			}
-			mu.RUnlock()
-
-			b.logger.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
-
-			folder := filepath.Join("inkbunny", submission.Username)
-			err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
-			if err != nil {
-				b.logger.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
-			}
-
-			fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
-			file, err := utils.DownloadEncrypt(ctx, b.crypto, submission.FileURLFull, fileName)
-			if err != nil {
-				b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
-				continue
-			}
-			b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
-
-			prediction, err := classify.DefaultCache.Predict(ctx, submission.FileURLFull, file)
-			file.Close()
-			if err != nil {
-				b.logger.Printf("Error predicting submission: %v", err)
-				continue
-			}
-			b.logger.Infof("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
-
-			go func() { mu.Lock(); readSubs[submission.SubmissionID] = prediction; mu.Unlock() }()
-
-			if b.key != "" {
-				submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.key)
-			}
-			yield(Result{
-				Path:       submission.FileURLFull,
-				Submission: submission,
-				Prediction: prediction,
-			})
+	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList, yield func(Result)) {
+		if !utils.IsImage(submission.FileURLFull) {
+			return
 		}
+		mu.RLock()
+		if _, ok := readSubs[submission.SubmissionID]; ok {
+			mu.RUnlock()
+			return
+		}
+		mu.RUnlock()
+
+		b.logger.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
+
+		folder := filepath.Join("inkbunny", submission.Username)
+		err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
+		if err != nil {
+			b.logger.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
+		}
+
+		fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
+		file, err := utils.DownloadEncrypt(ctx, b.crypto, submission.FileURLFull, fileName)
+		if err != nil {
+			b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
+			return
+		}
+		b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
+
+		prediction, err := classify.DefaultCache.Predict(ctx, submission.FileURLFull, file)
+		file.Close()
+		if err != nil {
+			b.logger.Printf("Error predicting submission: %v", err)
+			return
+		}
+		b.logger.Infof("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
+
+		go func() { mu.Lock(); readSubs[submission.SubmissionID] = prediction; mu.Unlock() }()
+
+		if b.key != "" {
+			submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.key)
+		}
+		yield(Result{
+			Path:       submission.FileURLFull,
+			Submission: submission,
+			Prediction: prediction,
+		})
 	})
 
 	go func() {

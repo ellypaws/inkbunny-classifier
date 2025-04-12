@@ -9,7 +9,7 @@ type WorkerPool[J any, R any] struct {
 	workers int
 
 	working sync.Once
-	work    func(<-chan J, func(R))
+	work    func(J, func(R))
 
 	closed    bool
 	jobs      chan jobRequest[J, R]
@@ -26,7 +26,7 @@ type jobRequest[J any, R any] struct {
 // The job channel is buffered to the number of workers.
 // The work function should use the channel to receive jobs, and use the callback function to send responses.
 // Inside the work function, the callback function should only be called synchronously or the program might panic.
-func NewWorkerPool[J any, R any](workers int, work func(jobs <-chan J, yield func(R))) WorkerPool[J, R] {
+func NewWorkerPool[J any, R any](workers int, work func(job J, yield func(R))) WorkerPool[J, R] {
 	return WorkerPool[J, R]{
 		workers:   workers,
 		work:      work,
@@ -55,10 +55,7 @@ func (p *WorkerPool[J, R]) do() {
 	for range p.workers {
 		go func() {
 			for req := range p.jobs {
-				job := make(chan J, 1)
-				job <- req.job
-				close(job)
-				p.work(job, func(r R) {
+				p.work(req.job, func(r R) {
 					workSet.Add(1)
 					go func() {
 						select {
