@@ -11,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"sync"
 )
 
 // deriveKey creates a 32-byte key from the input string using SHA-256.
@@ -45,6 +46,25 @@ func (c *Crypto) Key() string {
 	return c.key
 }
 
+// cipherWriter wraps an io.Writer and a cipher.Stream.
+type cipherWriter struct {
+	cipher.StreamWriter
+	sync.Once
+	iv []byte
+}
+
+// Write encrypts data using the stream cipher and writes the resulting ciphertext
+// to the underlying writer. The first write will also write the IV of length aes.BlockSize.
+func (cw *cipherWriter) Write(p []byte) (n int, err error) {
+	cw.Once.Do(func() {
+		n, err = cw.StreamWriter.W.Write(cw.iv)
+	})
+	if err != nil {
+		return
+	}
+	return cw.StreamWriter.Write(p)
+}
+
 // Encoder wraps an io.Writer into an encrypting writer. It writes a random IV
 // (initialization vector) as a prefix to the output so that the Decoder can decrypt.
 func (c *Crypto) Encoder(w io.Writer) (io.Writer, error) {
@@ -56,13 +76,9 @@ func (c *Crypto) Encoder(w io.Writer) (io.Writer, error) {
 	if _, err := rand.Read(iv); err != nil {
 		return nil, err
 	}
-	// Write the IV to the underlying writer.
-	if _, err := w.Write(iv); err != nil {
-		return nil, err
-	}
 	// Create a CTR stream cipher.
 	stream := cipher.NewCTR(c.block, iv)
-	return cipher.StreamWriter{S: stream, W: w}, nil
+	return &cipherWriter{StreamWriter: cipher.StreamWriter{S: stream, W: w}, iv: iv}, nil
 }
 
 // Decoder wraps an io.Reader so that the data is decrypted on the fly.
