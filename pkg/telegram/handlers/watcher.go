@@ -61,10 +61,10 @@ func (b *Bot) Watcher() error {
 		prediction, err := classify.DefaultCache.Predict(ctx, submission.FileURLFull, file)
 		file.Close()
 		if err != nil {
-			b.logger.Printf("Error predicting submission: %v", err)
+			b.logger.Errorf("Error predicting submission: %v", err)
 			return
 		}
-		b.logger.Infof("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
+		b.logger.Debugf("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
 
 		go func() { mu.Lock(); readSubs[submission.SubmissionID] = prediction; mu.Unlock() }()
 
@@ -112,7 +112,7 @@ func (b *Bot) Watcher() error {
 	for res := range worker.Work() {
 		var highest *string
 		for _, class := range classes {
-			if prediction := res.Prediction[class]; prediction > 0.5 {
+			if prediction := res.Prediction[class]; prediction >= 0.5 {
 				if highest == nil {
 					highest = &class
 				} else if prediction > res.Prediction[*highest] {
@@ -121,7 +121,9 @@ func (b *Bot) Watcher() error {
 			}
 		}
 		if highest != nil {
-			_, err := b.Notify(fmt.Sprintf("⚠️ Detected class %q (%d%%) for https://inkbunny.net/s/%s by %q", *highest, int(res.Prediction[*highest]*100), res.Submission.SubmissionID, res.Submission.Username))
+			text := fmt.Sprintf("⚠️ Detected class %q (%d%%) for https://inkbunny.net/s/%s by %q", *highest, int(res.Prediction[*highest]*100), res.Submission.SubmissionID, res.Submission.Username)
+			b.logger.Infof(text)
+			_, err := b.Notify(text)
 			if err != nil {
 				b.logger.Errorf("Error sending message to telegram: %v", err)
 			}
