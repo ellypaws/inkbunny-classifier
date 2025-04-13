@@ -134,6 +134,8 @@ func (b *Bot) handleSubscribe(c telebot.Context) error {
 		return err
 	}
 
+	b.logger.Info("Subscribed successfully", "username", chat.Username, "id", chat.ID)
+
 	return nil
 }
 
@@ -150,6 +152,8 @@ func (b *Bot) handleUnsubscribe(c telebot.Context) error {
 	if err != nil {
 		return err
 	}
+
+	b.logger.Info("Unsubscribed successfully", "username", chat.Username, "id", chat.ID)
 
 	return nil
 }
