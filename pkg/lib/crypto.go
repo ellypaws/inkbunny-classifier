@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -40,21 +41,8 @@ func NewCrypto(key string) (*Crypto, error) {
 	}, nil
 }
 
-// cipherWriter wraps an io.Writer and a cipher.Stream.
-type cipherWriter struct {
-	writer io.Writer
-	stream cipher.Stream
-}
-
-// Write encrypts data using the stream cipher and writes the resulting ciphertext
-// to the underlying writer.
-func (cw *cipherWriter) Write(p []byte) (int, error) {
-	// Copy p into a temporary slice so that the original data isn't modified.
-	tmp := make([]byte, len(p))
-	copy(tmp, p)
-	// Encrypt in-place in the temporary slice.
-	cw.stream.XORKeyStream(tmp, tmp)
-	return cw.writer.Write(tmp)
+func (c *Crypto) Key() string {
+	return c.key
 }
 
 // Encoder wraps an io.Writer into an encrypting writer. It writes a random IV
@@ -74,26 +62,7 @@ func (c *Crypto) Encoder(w io.Writer) (io.Writer, error) {
 	}
 	// Create a CTR stream cipher.
 	stream := cipher.NewCTR(c.block, iv)
-	return &cipherWriter{
-		writer: w,
-		stream: stream,
-	}, nil
-}
-
-// cipherReader wraps an io.Reader and a cipher.Stream.
-type cipherReader struct {
-	reader io.Reader
-	stream cipher.Stream
-}
-
-// Read reads from the underlying reader, decrypts the data in-place, and
-// returns the decrypted data.
-func (cr *cipherReader) Read(p []byte) (int, error) {
-	n, err := cr.reader.Read(p)
-	if n > 0 {
-		cr.stream.XORKeyStream(p[:n], p[:n])
-	}
-	return n, err
+	return cipher.StreamWriter{S: stream, W: w}, nil
 }
 
 // Decoder wraps an io.Reader so that the data is decrypted on the fly.
@@ -109,10 +78,29 @@ func (c *Crypto) Decoder(r io.Reader) (io.Reader, error) {
 	}
 	// Create a CTR stream cipher for decryption using the same IV.
 	stream := cipher.NewCTR(c.block, iv)
-	return &cipherReader{
-		reader: r,
-		stream: stream,
-	}, nil
+	return cipher.StreamReader{S: stream, R: r}, nil
+}
+
+// Encrypt returns an io.Reader that produces the encrypted version of data read
+// from the provided plaintext reader. The IV is generated and served as the first
+// aes.BlockSize bytes of the output.
+func (c *Crypto) Encrypt(r io.Reader) (io.Reader, error) {
+	if c.key == "" {
+		return r, nil
+	}
+
+	iv := make([]byte, aes.BlockSize)
+	// Generate a random IV.
+	if _, err := rand.Read(iv); err != nil {
+		return nil, err
+	}
+
+	// Create a CTR stream cipher with the IV.
+	stream := cipher.NewCTR(c.block, iv)
+
+	// Return the encrypter that prepends the IV header and then encrypts the rest
+	// of the data read from the underlying plaintext reader.
+	return io.MultiReader(bytes.NewReader(iv), &cipher.StreamReader{S: stream, R: r}), nil
 }
 
 func FileExists(path string) bool {
