@@ -61,7 +61,7 @@ func (p *WorkerPool[J, R]) do() {
 						select {
 						case p.responses <- r:
 						case req.promise <- r:
-							close(req.promise)
+							req.promise = nil
 						}
 						workSet.Done()
 					}()
