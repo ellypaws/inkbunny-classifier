@@ -80,20 +80,37 @@ func (c *Crypto) Encoder(w io.Writer) (io.Writer, error) {
 	return &cipherWriter{StreamWriter: cipher.StreamWriter{S: stream, W: w}, iv: iv}, nil
 }
 
+// cipherReader wraps an io.Reader and a cipher.Stream.
+type cipherReader struct {
+	cipher.Block
+	cipher.StreamReader
+	sync.Once
+}
+
+// Read decrypts data using the stream cipher and reads the resulting plaintext
+// from the underlying reader. The first read will also read the IV of length aes.BlockSize.
+func (cr *cipherReader) Read(p []byte) (n int, err error) {
+	cr.Once.Do(func() {
+		iv := make([]byte, aes.BlockSize)
+		// Read the IV from the beginning of the stream.
+		n, err = io.ReadFull(cr.StreamReader.R, iv)
+		if err == nil {
+			cr.StreamReader.S = cipher.NewCTR(cr.Block, iv)
+		}
+	})
+	if err != nil {
+		return
+	}
+	return cr.StreamReader.Read(p)
+}
+
 // Decoder wraps an io.Reader so that the data is decrypted on the fly.
 // It expects the first aes.BlockSize bytes from the reader to be the IV.
 func (c *Crypto) Decoder(r io.Reader) (io.Reader, error) {
 	if c == nil || c.key == "" {
 		return r, nil
 	}
-	iv := make([]byte, aes.BlockSize)
-	// Read the IV from the beginning of the stream.
-	if _, err := io.ReadFull(r, iv); err != nil {
-		return nil, err
-	}
-	// Create a CTR stream cipher for decryption using the same IV.
-	stream := cipher.NewCTR(c.block, iv)
-	return cipher.StreamReader{S: stream, R: r}, nil
+	return &cipherReader{Block: c.block, StreamReader: cipher.StreamReader{R: r}}, nil
 }
 
 // Encrypt returns an io.Reader that produces the encrypted version of data read
