@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"gopkg.in/telebot.v4"
 
 	"classifier/pkg/lib"
+	"classifier/pkg/utils"
 )
 
 type Bot struct {
@@ -99,9 +99,7 @@ func (b *Bot) save() {
 		return
 	}
 	defer f.Close()
-	encoder := json.NewEncoder(f)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(b.Subscribers); err != nil {
+	if err := utils.Encode(f, b.Subscribers); err != nil {
 		b.logger.Error("Failed to encode save file", "error", err, "path", savePath)
 	}
 }
@@ -115,13 +113,12 @@ func (b *Bot) load() {
 		return
 	}
 	defer f.Close()
-	decoder := json.NewDecoder(f)
-	subscribers := make(Subscribers)
-	if err := decoder.Decode(&subscribers); err != nil {
+	subscribers, err := utils.Decode[Subscribers](f)
+	if err != nil {
 		b.logger.Error("Failed to load save file", "error", err, "path", savePath)
 		return
 	}
-	if subscribers != nil {
+	if len(subscribers) > 0 {
 		b.Subscribers = subscribers
 		b.logger.Debugf("Loaded %d subscribers from %s file", len(subscribers), savePath)
 	}
