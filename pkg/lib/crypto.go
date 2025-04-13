@@ -6,10 +6,8 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"sync"
 )
@@ -117,11 +115,6 @@ func (c *Crypto) Encrypt(r io.Reader) (io.Reader, error) {
 	// Return the encrypter that prepends the IV header and then encrypts the rest
 	// of the data read from the underlying plaintext reader.
 	return io.MultiReader(bytes.NewReader(iv), &cipher.StreamReader{S: stream, R: r}), nil
-}
-
-func FileExists(path string) bool {
-	_, err := os.Stat(path)
-	return !errors.Is(err, fs.ErrNotExist)
 }
 
 // Open opens a file and returns a CryptoFile, which implements io.ReadSeekCloser

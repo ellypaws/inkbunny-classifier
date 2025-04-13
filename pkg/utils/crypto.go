@@ -2,8 +2,10 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,7 +23,7 @@ func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, link, fileName str
 		return nil, fmt.Errorf("error parsing URL: %w", err)
 	}
 
-	if lib.FileExists(fileName) {
+	if FileExists(fileName) {
 		return crypto.Open(fileName)
 	}
 
@@ -54,4 +56,9 @@ func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, link, fileName str
 	}
 
 	return crypto.Open(fileName)
+}
+
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return !errors.Is(err, fs.ErrNotExist)
 }

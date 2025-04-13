@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	"classifier/pkg/lib"
+	"classifier/pkg/utils"
 )
 
 //go:embed index.html
@@ -22,7 +23,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	const indexPath = "../../pkg/server/index.html"
-	if lib.FileExists(indexPath) {
+	if utils.FileExists(indexPath) {
 		http.ServeFile(w, r, indexPath)
 	} else {
 		log.Warnf("No index file found at %s, serving embed", indexPath)
