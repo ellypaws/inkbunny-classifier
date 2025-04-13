@@ -19,6 +19,7 @@ func deriveKey(key string) []byte {
 }
 
 // Crypto holds the key and the AES block used for encryption/decryption.
+// An empty Crypto instance means no encryption is applied.
 type Crypto struct {
 	key   string
 	block cipher.Block
@@ -66,7 +67,7 @@ func (cw *cipherWriter) Write(p []byte) (n int, err error) {
 // Encoder wraps an io.Writer into an encrypting writer. It writes a random IV
 // (initialization vector) as a prefix to the output so that the Decoder can decrypt.
 func (c *Crypto) Encoder(w io.Writer) (io.Writer, error) {
-	if c.key == "" {
+	if c == nil || c.key == "" {
 		return w, nil
 	}
 	iv := make([]byte, aes.BlockSize)
@@ -82,7 +83,7 @@ func (c *Crypto) Encoder(w io.Writer) (io.Writer, error) {
 // Decoder wraps an io.Reader so that the data is decrypted on the fly.
 // It expects the first aes.BlockSize bytes from the reader to be the IV.
 func (c *Crypto) Decoder(r io.Reader) (io.Reader, error) {
-	if c.key == "" {
+	if c == nil || c.key == "" {
 		return r, nil
 	}
 	iv := make([]byte, aes.BlockSize)
@@ -99,7 +100,7 @@ func (c *Crypto) Decoder(r io.Reader) (io.Reader, error) {
 // from the provided plaintext reader. The IV is generated and served as the first
 // aes.BlockSize bytes of the output.
 func (c *Crypto) Encrypt(r io.Reader) (io.Reader, error) {
-	if c.key == "" {
+	if c == nil || c.key == "" {
 		return r, nil
 	}
 
