@@ -1036,7 +1036,6 @@
      */
     function renderFilteredResults() {
         resultsDiv.innerHTML = '';
-        const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
         let passCount = 0;
         allResults.forEach((result) => {
             const passesColor = evaluateColor(result);
