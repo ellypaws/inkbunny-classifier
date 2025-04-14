@@ -132,8 +132,9 @@ func (b *Bot) Watcher() error {
 			b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages}
 			b.mu.Unlock()
 
+			b.save()
 			if err != nil {
-				b.logger.Errorf("Error sending message to telegram: %v", err)
+				b.logger.Errorf("Error notifying users: %v", err)
 			}
 		}
 	}
@@ -232,6 +233,7 @@ func randomActivity() telebot.ChatAction {
 // set isFalseReport to add refs.count, and will edit an undoButton on who clicked the button
 func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 	return func(c telebot.Context) error {
+		defer b.save()
 		if err := c.Notify(randomActivity()); err != nil {
 			return err
 		}
