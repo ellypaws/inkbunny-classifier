@@ -13,6 +13,8 @@ import (
 	"classifier/pkg/telegram/parser"
 )
 
+var warnNoPredictions = parser.Parse("**Could not determine**\n\n*All predictions are less than 75%*")
+
 func (b *Bot) handleUpload(c telebot.Context) error {
 	if err := c.Notify(randomActivity()); err != nil {
 		return err
@@ -49,10 +51,8 @@ func (b *Bot) handleUpload(c telebot.Context) error {
 		return err
 	}
 
-	prediction.Filter(0.5)
-	if len(prediction) == 0 {
-		const message = "**Could not determine**\n\n*All predictions are less than 50%*"
-		return c.Reply(parser.Parse(message), telebot.ModeMarkdownV2)
+	if len(prediction.Minimum(0.75)) == 0 {
+		return c.Reply(warnNoPredictions, telebot.ModeMarkdownV2)
 	}
 
 	var sb strings.Builder

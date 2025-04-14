@@ -17,6 +17,11 @@ func Parse(text string) string {
 	return strings.TrimSpace(renderNodes(nodes, len(text)))
 }
 
+// Parsef is a convenience function that formats the input string using [fmt.Sprintf]
+func Parsef(format string, a ...any) string {
+	return Parse(fmt.Sprintf(format, a...))
+}
+
 // renderNodes concatenates the rendered output of all AST nodes.
 func renderNodes(nodes []Node, length int) string {
 	var sb strings.Builder

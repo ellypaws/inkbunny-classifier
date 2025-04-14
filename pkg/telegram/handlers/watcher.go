@@ -11,8 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellypaws/inkbunny/api"
 	"gopkg.in/telebot.v4"
+
+	"github.com/ellypaws/inkbunny/api"
 
 	"classifier/pkg/classify"
 	"classifier/pkg/telegram/parser"
@@ -109,55 +110,39 @@ func (b *Bot) Watcher() error {
 		}
 	}()
 
-	classes := []string{"cub"}
+	allowed := []string{"cub"}
 	if c := os.Getenv("CLASS"); c != "" {
-		classes = strings.Split(c, ",")
+		allowed = strings.Split(c, ",")
 	}
 	for res := range worker.Work() {
-		var highestClass *string
-		for _, class := range classes {
-			if prediction := res.Prediction[class]; prediction >= 0.5 {
-				if highestClass == nil {
-					highestClass = &class
-				} else if prediction > res.Prediction[*highestClass] {
-					highestClass = &class
-				}
-			}
+		if len(res.Prediction.Minimum(0.75).Whitelist(allowed...)) == 0 {
+			continue
 		}
-		if highestClass != nil {
-			text := fmt.Sprintf("⚠️ Detected class %q (%.2f%%) for https://inkbunny.net/s/%s by %q", *highestClass, res.Prediction[*highestClass]*100, res.Submission.SubmissionID, res.Submission.Username)
-			b.logger.Info(text)
 
-			b.mu.Lock()
-			messages, err := b.Notify(text, res)
-			b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages}
-			b.mu.Unlock()
+		b.mu.Lock()
+		messages, err := b.Notify(res)
+		b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages}
+		b.mu.Unlock()
 
-			b.save()
-			if err != nil {
-				b.logger.Errorf("Error notifying users: %v", err)
-			}
+		b.save()
+		if err != nil {
+			b.logger.Errorf("Error notifying users: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func addButton(button *telebot.ReplyMarkup, messages ...*telebot.Message) []MessageWithButton {
-	withButtons := make([]MessageWithButton, len(messages))
-	for i, m := range messages {
-		withButtons[i] = MessageWithButton{Message: m, Button: button}
-	}
-	return withButtons
-}
+func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
+	class, confidence := result.Prediction.Max()
+	b.logger.Infof("⚠️ Detected filtered (%.2f%%) for https://inkbunny.net/s/%s by %q", confidence*100, result.Submission.SubmissionID, result.Submission.Username)
 
-func (b *Bot) Notify(content string, result Result) ([]MessageWithButton, error) {
 	if len(b.Subscribers) == 0 {
 		b.logger.Warn("Cannot send message - no subscribers")
 		return nil, nil
 	}
 
-	message := parser.Parse(content)
+	message := parser.Parsef("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
 	button := Single(CopyButton(falseButton, result.Submission.SubmissionID))
 
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
@@ -167,14 +152,14 @@ func (b *Bot) Notify(content string, result Result) ([]MessageWithButton, error)
 			continue
 		}
 		b.logger.Debug("Sending message to Telegram", "user_id", id)
-		message, err := wrapper.Send(b.Bot, recipient, message, &telebot.SendOptions{ParseMode: telebot.ModeMarkdownV2, ReplyMarkup: button})
+		reference, err := wrapper.Send(b.Bot, recipient, message, &telebot.SendOptions{ParseMode: telebot.ModeMarkdownV2, ReplyMarkup: button})
 		if err != nil {
 			b.logger.Error("Failed to send message", "error", err, "user_id", id)
 			return nil, fmt.Errorf("error sending to telegram: %w", err)
 		}
 
 		b.logger.Info("Message sent successfully", "user_id", id)
-		references = append(references, MessageWithButton{Message: message, Button: button})
+		references = append(references, MessageWithButton{Message: reference, Button: button})
 	}
 
 	return references, nil

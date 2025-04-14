@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"time"
 
 	_ "golang.org/x/image/webp"
@@ -44,10 +45,48 @@ func (p Prediction) Sorted() iter.Seq2[string, float64] {
 	return s.Backward()
 }
 
+// Max returns the key and value of the prediction with the highest confidence.
+func (p Prediction) Max() (string, float64) {
+	if len(p) == 0 {
+		return "", -1
+	}
+	for k, v := range p.Sorted() {
+		return k, v
+	}
+	return "", -1
+}
+
 // Filter returns the modified prediction map with only the predictions that have a confidence greater than or equal to min.
-func (p Prediction) Filter(min float64) Prediction {
-	maps.DeleteFunc(p, func(_ string, confidence float64) bool { return confidence < min })
+func (p Prediction) Filter(filters ...func(string, float64) bool) Prediction {
+	for _, filter := range filters {
+		if filter == nil {
+			continue
+		}
+		maps.DeleteFunc(p, filter)
+	}
 	return p
+}
+
+// Minimum returns the modified prediction map with only the predictions that have a confidence greater than or equal to min.
+func (p Prediction) Minimum(min float64) Prediction {
+	return p.Filter(Minimum[string](min))
+}
+
+// Whitelist returns the modified prediction map with only the predictions that are in the whitelist.
+func (p Prediction) Whitelist(allow ...string) Prediction {
+	return p.Filter(Whitelist[float64](allow...))
+}
+
+// Minimum returns a function that can be used to filter predictions based on a minimum confidence level.
+func Minimum[K comparable](min float64) func(K, float64) bool {
+	return func(_ K, confidence float64) bool { return confidence < min }
+}
+
+// Whitelist returns a function that can be used to filter predictions based on a whitelist of allowed keys.
+func Whitelist[V any](allow ...string) func(string, V) bool {
+	return func(key string, _ V) bool {
+		return !slices.Contains(allow, key)
+	}
 }
 
 // Predict expects file to already be encrypted if needed, such as [classifier/pkg/lib.Crypto.Encrypt].
