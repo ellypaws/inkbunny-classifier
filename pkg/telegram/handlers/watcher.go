@@ -16,6 +16,7 @@ import (
 
 	"classifier/pkg/classify"
 	"classifier/pkg/telegram/parser"
+	"classifier/pkg/telegram/wrapper"
 	"classifier/pkg/utils"
 )
 
@@ -166,7 +167,7 @@ func (b *Bot) Notify(content string, result Result) ([]MessageWithButton, error)
 			continue
 		}
 		b.logger.Debug("Sending message to Telegram", "user_id", id)
-		message, err := b.Bot.Send(recipient, message, &telebot.SendOptions{ParseMode: telebot.ModeMarkdownV2}, button)
+		message, err := wrapper.Send(b.Bot, recipient, message, &telebot.SendOptions{ParseMode: telebot.ModeMarkdownV2, ReplyMarkup: button})
 		if err != nil {
 			b.logger.Error("Failed to send message", "error", err, "user_id", id)
 			return nil, fmt.Errorf("error sending to telegram: %w", err)
@@ -273,14 +274,14 @@ func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 		}
 		for i, ref := range refs.Messages {
 			if ref.Message.Chat.ID == reporterMessage.Chat.ID {
-				edited, err := b.Bot.Edit(ref.Message, text, button)
+				edited, err := wrapper.Edit(b.Bot, ref.Message, text, button)
 				if err != nil {
 					b.logger.Warn("Failed to edit message", "error", err)
 					continue
 				}
 				refs.Messages[i] = MessageWithButton{Message: edited, Button: button}
 			} else {
-				edited, err := b.Bot.Edit(ref.Message, text, ref.Button)
+				edited, err := wrapper.Edit(b.Bot, ref.Message, text, ref.Button)
 				if err != nil {
 					b.logger.Warn("Failed to edit message", "error", err)
 					continue
