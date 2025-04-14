@@ -116,6 +116,9 @@ func (b *Bot) Watcher() error {
 	}
 	for res := range worker.Work() {
 		if len(res.Prediction.Minimum(0.75).Whitelist(allowed...)) == 0 {
+			b.mu.Lock()
+			b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}
+			b.mu.Unlock()
 			continue
 		}
 
