@@ -177,13 +177,14 @@ func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 	return func(c telebot.Context) error {
 		defer b.save()
 		if err := c.Notify(utils.RandomActivity()); err != nil {
-			return err
+			b.logger.Error("Failed to notify users", "error", err, "users", len(b.Subscribers))
+			return nil
 		}
 
 		submissionID := c.Data()
 		if submissionID == "" {
 			b.logger.Warn("No submission ID found")
-			return errors.New("no submission ID found")
+			return nil
 		}
 
 		b.mu.Lock()
@@ -191,7 +192,7 @@ func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 		refs, ok := b.references[submissionID]
 		if !ok {
 			b.logger.Warn("No references found")
-			return errors.New("no references found")
+			return nil
 		}
 
 		var button *telebot.ReplyMarkup
@@ -206,7 +207,7 @@ func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 		reporterMessage := c.Message()
 		if reporterMessage == nil {
 			b.logger.Error("Message cannot be nil")
-			return errors.New("message cannot be nil")
+			return nil
 		}
 
 		text := strings.SplitN(reporterMessage.Text, "\n", 2)[0]
