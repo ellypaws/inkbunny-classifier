@@ -42,6 +42,9 @@ func NewCrypto(key string) (*Crypto, error) {
 }
 
 func (c *Crypto) Key() string {
+	if c == nil {
+		return ""
+	}
 	return c.key
 }
 
