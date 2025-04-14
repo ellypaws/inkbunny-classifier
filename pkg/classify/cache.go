@@ -3,6 +3,7 @@ package classify
 import (
 	"context"
 	"io"
+	"maps"
 	"os"
 	"sync"
 
@@ -69,7 +70,7 @@ func (c *cache) Predict(ctx context.Context, name, key string, file io.Reader) (
 	c.predictions[name] = d
 	c.Unlock()
 
-	return d, nil
+	return maps.Clone(d), nil
 }
 
 func (c *cache) PredictURL(ctx context.Context, path string) (Prediction, error) {
