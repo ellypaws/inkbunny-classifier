@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -49,6 +50,7 @@ type Config struct {
 	SID           string
 	Classify      string
 	EncryptionKey string
+	Context       context.Context
 }
 
 func New(config Config) (*Bot, error) {
@@ -74,6 +76,7 @@ func New(config Config) (*Bot, error) {
 		config.Classify != "false",
 		config.EncryptionKey,
 		config.Output,
+		config.Context,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Telegram bot: %w", err)
@@ -127,6 +130,7 @@ func (b *Bot) Wait() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-stop
+	close(stop)
 }
 
 func (b *Bot) Shutdown() error {

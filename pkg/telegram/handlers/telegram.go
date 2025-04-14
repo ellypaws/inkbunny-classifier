@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -27,8 +28,9 @@ type Bot struct {
 
 	references map[string]*MessageRef
 
-	mu     sync.Mutex
-	logger *log.Logger
+	context context.Context
+	mu      sync.Mutex
+	logger  *log.Logger
 }
 
 type MessageRef struct {
@@ -43,7 +45,7 @@ type MessageWithButton struct {
 
 type Subscribers = map[int64]*telebot.Chat
 
-func New(token string, sid string, refreshRate time.Duration, classify bool, encryptionKey string, output io.Writer) (*Bot, error) {
+func New(token string, sid string, refreshRate time.Duration, classify bool, encryptionKey string, output io.Writer, context context.Context) (*Bot, error) {
 	settings := telebot.Settings{
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -80,7 +82,8 @@ func New(token string, sid string, refreshRate time.Duration, classify bool, enc
 
 		references: make(map[string]*MessageRef),
 
-		logger: logger,
+		context: context,
+		logger:  logger,
 	}, nil
 }
 
@@ -125,6 +128,7 @@ func (b *Bot) save() {
 	if err := utils.Encode(f, settings); err != nil {
 		b.logger.Error("Failed to encode save file", "error", err, "path", savePath)
 	}
+	b.logger.Info("Saved telegram settings", "path", savePath, "subscribers", len(b.Subscribers), "references", len(b.references))
 }
 
 func (b *Bot) load() {

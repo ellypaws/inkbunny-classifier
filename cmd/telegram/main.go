@@ -1,8 +1,8 @@
 package main
 
 import (
+	"context"
 	"os"
-	"time"
 
 	"github.com/charmbracelet/log"
 
@@ -20,6 +20,7 @@ const (
 
 func main() {
 	defer utils.LogOutput(os.Stdout)()
+	ctx, done := context.WithCancel(context.Background())
 	b, err := bot.New(bot.Config{
 		Output:        os.Stdout,
 		Token:         os.Getenv(EnvTelegramBotToken),
@@ -27,19 +28,22 @@ func main() {
 		SID:           os.Getenv(EnvTelegramSID),
 		Classify:      os.Getenv(EnvTelegramClassify),
 		EncryptionKey: os.Getenv(EnvTelegramEncryptionKey),
+		Context:       ctx,
 	})
 	if err != nil {
 		log.Fatalf("error creating bot: %v", err)
 	}
 
-	err = b.Start()
-	if err != nil {
-		log.Fatalf("error starting bot: %v", err)
-	}
+	go func() {
+		err = b.Start()
+		if err != nil {
+			log.Fatalf("error starting bot: %v", err)
+		}
+	}()
 
+	b.Wait()
+	done()
 	if err := b.Shutdown(); err != nil {
 		log.Fatalf("error shutting down bot: %v", err)
 	}
-
-	time.Sleep(5 * time.Second)
 }

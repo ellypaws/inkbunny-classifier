@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -31,8 +30,6 @@ func (b *Bot) Watcher() error {
 		return errors.New("classification not enabled")
 	}
 
-	ctx := context.Background()
-
 	readSubs := make(map[string]classify.Prediction)
 	var mu sync.RWMutex
 	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList, yield func(Result)) {
@@ -55,14 +52,14 @@ func (b *Bot) Watcher() error {
 		}
 
 		fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
-		file, err := utils.DownloadEncrypt(ctx, b.crypto, submission.FileURLFull, fileName)
+		file, err := utils.DownloadEncrypt(b.context, b.crypto, submission.FileURLFull, fileName)
 		if err != nil {
 			b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 			return
 		}
 		b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
 
-		prediction, err := classify.DefaultCache.Predict(ctx, submission.FileURLFull, b.crypto.Key(), file)
+		prediction, err := classify.DefaultCache.Predict(b.context, submission.FileURLFull, b.crypto.Key(), file)
 		file.Close()
 		if err != nil {
 			b.logger.Errorf("Error predicting submission: %v", err)
@@ -84,9 +81,9 @@ func (b *Bot) Watcher() error {
 
 	go func() {
 		defer worker.Close()
-		for ctx.Err() == nil {
+		for b.context.Err() == nil {
 			select {
-			case <-ctx.Done():
+			case <-b.context.Done():
 				return
 			default:
 			}
@@ -101,7 +98,7 @@ func (b *Bot) Watcher() error {
 			}
 			worker.Add(response.Submissions...)
 			select {
-			case <-ctx.Done():
+			case <-b.context.Done():
 				return
 			case <-time.After(b.refreshRate):
 				continue
@@ -146,6 +143,10 @@ func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
 
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
+		if b.context.Err() != nil {
+			b.logger.Warn("Bot is shutting down, stopping message sending")
+			break
+		}
 		if recipient == nil {
 			b.logger.Warnf("%d has no recipient", id)
 			continue
