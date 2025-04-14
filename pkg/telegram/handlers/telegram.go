@@ -34,7 +34,8 @@ type Bot struct {
 }
 
 type MessageRef struct {
-	Messages []MessageWithButton `json:"messages"`
+	Result   Result              `json:"result,omitempty"`
+	Messages []MessageWithButton `json:"messages,omitempty"`
 	Count    int                 `json:"count"`
 }
 

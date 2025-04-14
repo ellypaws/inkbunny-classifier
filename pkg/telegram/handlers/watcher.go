@@ -30,14 +30,13 @@ func (b *Bot) Watcher() error {
 		return errors.New("classification not enabled")
 	}
 
-	readSubs := make(map[string]classify.Prediction)
 	var mu sync.RWMutex
 	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList, yield func(Result)) {
 		if !utils.IsImage(submission.FileURLFull) {
 			return
 		}
 		mu.RLock()
-		if _, ok := readSubs[submission.SubmissionID]; ok {
+		if _, ok := b.references[submission.SubmissionID]; ok {
 			mu.RUnlock()
 			return
 		}
@@ -66,8 +65,6 @@ func (b *Bot) Watcher() error {
 			return
 		}
 		b.logger.Debugf("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
-
-		go func() { mu.Lock(); readSubs[submission.SubmissionID] = prediction; mu.Unlock() }()
 
 		if b.key != "" {
 			submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.key)
@@ -117,7 +114,7 @@ func (b *Bot) Watcher() error {
 
 		b.mu.Lock()
 		messages, err := b.Notify(res)
-		b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages}
+		b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages, Result: res}
 		b.mu.Unlock()
 
 		b.save()
