@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -143,7 +142,7 @@ func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
 	}
 
 	message := parser.Parsef("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
-	button := Single(CopyButton(falseButton, result.Submission.SubmissionID))
+	button := utils.Single(utils.CopyButton(falseButton, result.Submission.SubmissionID))
 
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
@@ -165,62 +164,11 @@ func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
 	return references, nil
 }
 
-func CopyButton(button telebot.Btn, data string) telebot.Btn {
-	button.Data = data
-	return button
-}
-
-func Single[button interface{ Inline() *telebot.InlineButton }](buttons ...button) *telebot.ReplyMarkup {
-	return NewButtons(buttons)
-}
-
-func NewButtons[button interface{ Inline() *telebot.InlineButton }](rows ...[]button) *telebot.ReplyMarkup {
-	buttonRows := make([][]telebot.InlineButton, len(rows))
-	for i, row := range rows {
-		buttonRows[i] = NewRow(row...)
-	}
-
-	return &telebot.ReplyMarkup{InlineKeyboard: buttonRows}
-}
-
-func NewRow[button interface{ Inline() *telebot.InlineButton }](buttons ...button) []telebot.InlineButton {
-	column := make([]telebot.InlineButton, len(buttons))
-	for i, b := range buttons {
-		column[i] = *b.Inline()
-	}
-
-	return column
-}
-
-func random[T any](v ...T) T {
-	if len(v) == 0 {
-		var def T
-		return def
-	}
-	return v[rand.IntN(len(v))]
-}
-
-func randomActivity() telebot.ChatAction {
-	return random(
-		telebot.Typing,
-		telebot.UploadingPhoto,
-		telebot.UploadingVideo,
-		telebot.UploadingAudio,
-		telebot.UploadingDocument,
-		telebot.UploadingVNote,
-		telebot.RecordingVideo,
-		telebot.RecordingAudio,
-		telebot.RecordingVNote,
-		telebot.FindingLocation,
-		telebot.ChoosingSticker,
-	)
-}
-
 // set isFalseReport to add refs.count, and will edit an undoButton on who clicked the button
 func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 	return func(c telebot.Context) error {
 		defer b.save()
-		if err := c.Notify(randomActivity()); err != nil {
+		if err := c.Notify(utils.RandomActivity()); err != nil {
 			return err
 		}
 
@@ -240,10 +188,10 @@ func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 
 		var button *telebot.ReplyMarkup
 		if isFalseReport {
-			button = Single(CopyButton(undoButton, submissionID))
+			button = utils.Single(utils.CopyButton(undoButton, submissionID))
 			refs.Count++
 		} else {
-			button = Single(CopyButton(falseButton, submissionID))
+			button = utils.Single(utils.CopyButton(falseButton, submissionID))
 			refs.Count--
 		}
 

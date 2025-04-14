@@ -11,12 +11,13 @@ import (
 
 	"classifier/pkg/classify"
 	"classifier/pkg/telegram/parser"
+	"classifier/pkg/utils"
 )
 
 var warnNoPredictions = parser.Parse("**Could not determine**\n\n*All predictions are less than 75%*")
 
 func (b *Bot) handleUpload(c telebot.Context) error {
-	if err := c.Notify(randomActivity()); err != nil {
+	if err := c.Notify(utils.RandomActivity()); err != nil {
 		return err
 	}
 
