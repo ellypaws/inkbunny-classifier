@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	"github.com/ellypaws/inkbunny/api"
+	"gopkg.in/telebot.v4"
 
 	"classifier/pkg/classify"
+	"classifier/pkg/telegram/parser"
 	"classifier/pkg/utils"
 )
 
@@ -110,20 +113,25 @@ func (b *Bot) Watcher() error {
 		classes = strings.Split(c, ",")
 	}
 	for res := range worker.Work() {
-		var highest *string
+		var highestClass *string
 		for _, class := range classes {
 			if prediction := res.Prediction[class]; prediction >= 0.5 {
-				if highest == nil {
-					highest = &class
-				} else if prediction > res.Prediction[*highest] {
-					highest = &class
+				if highestClass == nil {
+					highestClass = &class
+				} else if prediction > res.Prediction[*highestClass] {
+					highestClass = &class
 				}
 			}
 		}
-		if highest != nil {
-			text := fmt.Sprintf("⚠️ Detected class %q (%d%%) for https://inkbunny.net/s/%s by %q", *highest, int(res.Prediction[*highest]*100), res.Submission.SubmissionID, res.Submission.Username)
-			b.logger.Infof(text)
-			_, err := b.Notify(text)
+		if highestClass != nil {
+			text := fmt.Sprintf("⚠️ Detected class %q (%.2f%%) for https://inkbunny.net/s/%s by %q", *highestClass, res.Prediction[*highestClass]*100, res.Submission.SubmissionID, res.Submission.Username)
+			b.logger.Info(text)
+
+			b.mu.Lock()
+			messages, err := b.Notify(text, res)
+			b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages}
+			b.mu.Unlock()
+
 			if err != nil {
 				b.logger.Errorf("Error sending message to telegram: %v", err)
 			}
@@ -131,4 +139,154 @@ func (b *Bot) Watcher() error {
 	}
 
 	return nil
+}
+
+func addButton(button *telebot.ReplyMarkup, messages ...*telebot.Message) []MessageWithButton {
+	withButtons := make([]MessageWithButton, len(messages))
+	for i, m := range messages {
+		withButtons[i] = MessageWithButton{Message: m, Button: button}
+	}
+	return withButtons
+}
+
+func (b *Bot) Notify(content string, result Result) ([]MessageWithButton, error) {
+	if len(b.Subscribers) == 0 {
+		b.logger.Warn("Cannot send message - no subscribers")
+		return nil, nil
+	}
+
+	message := parser.Parse(content)
+	button := Single(CopyButton(falseButton, result.Submission.SubmissionID))
+
+	references := make([]MessageWithButton, 0, len(b.Subscribers))
+	for id, recipient := range b.Subscribers {
+		if recipient == nil {
+			b.logger.Warnf("%d has no recipient", id)
+			continue
+		}
+		b.logger.Debug("Sending message to Telegram", "user_id", id)
+		message, err := b.Bot.Send(recipient, message, &telebot.SendOptions{ParseMode: telebot.ModeMarkdownV2}, button)
+		if err != nil {
+			b.logger.Error("Failed to send message", "error", err, "user_id", id)
+			return nil, fmt.Errorf("error sending to telegram: %w", err)
+		}
+
+		b.logger.Info("Message sent successfully", "user_id", id)
+		references = append(references, MessageWithButton{Message: message, Button: button})
+	}
+
+	return references, nil
+}
+
+func CopyButton(button telebot.Btn, data string) telebot.Btn {
+	button.Data = data
+	return button
+}
+
+func Single[button interface{ Inline() *telebot.InlineButton }](buttons ...button) *telebot.ReplyMarkup {
+	return NewButtons(buttons)
+}
+
+func NewButtons[button interface{ Inline() *telebot.InlineButton }](rows ...[]button) *telebot.ReplyMarkup {
+	buttonRows := make([][]telebot.InlineButton, len(rows))
+	for i, row := range rows {
+		buttonRows[i] = NewRow(row...)
+	}
+
+	return &telebot.ReplyMarkup{InlineKeyboard: buttonRows}
+}
+
+func NewRow[button interface{ Inline() *telebot.InlineButton }](buttons ...button) []telebot.InlineButton {
+	column := make([]telebot.InlineButton, len(buttons))
+	for i, b := range buttons {
+		column[i] = *b.Inline()
+	}
+
+	return column
+}
+
+func random[T any](v ...T) T {
+	if len(v) == 0 {
+		var def T
+		return def
+	}
+	return v[rand.IntN(len(v))]
+}
+
+func randomActivity() telebot.ChatAction {
+	return random(
+		telebot.Typing,
+		telebot.UploadingPhoto,
+		telebot.UploadingVideo,
+		telebot.UploadingAudio,
+		telebot.UploadingDocument,
+		telebot.UploadingVNote,
+		telebot.RecordingVideo,
+		telebot.RecordingAudio,
+		telebot.RecordingVNote,
+		telebot.FindingLocation,
+		telebot.ChoosingSticker,
+	)
+}
+
+// set isFalseReport to add refs.count, and will edit an undoButton on who clicked the button
+func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
+	return func(c telebot.Context) error {
+		if err := c.Notify(randomActivity()); err != nil {
+			return err
+		}
+
+		submissionID := c.Data()
+		if submissionID == "" {
+			b.logger.Warn("No submission ID found")
+			return errors.New("no submission ID found")
+		}
+
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		refs, ok := b.references[submissionID]
+		if !ok {
+			b.logger.Warn("No references found")
+			return errors.New("no references found")
+		}
+
+		var button *telebot.ReplyMarkup
+		if isFalseReport {
+			button = Single(CopyButton(undoButton, submissionID))
+			refs.Count++
+		} else {
+			button = Single(CopyButton(falseButton, submissionID))
+			refs.Count--
+		}
+
+		reporterMessage := c.Message()
+		if reporterMessage == nil {
+			b.logger.Error("Message cannot be nil")
+			return errors.New("message cannot be nil")
+		}
+
+		text := strings.SplitN(reporterMessage.Text, "\n", 2)[0]
+		if refs.Count > 0 {
+			text = fmt.Sprintf("%s\n\n%d reported this as a false positive", text, refs.Count)
+		}
+		for i, ref := range refs.Messages {
+			if ref.Message.Chat.ID == reporterMessage.Chat.ID {
+				edited, err := b.Bot.Edit(ref.Message, text, button)
+				if err != nil {
+					b.logger.Warn("Failed to edit message", "error", err)
+					continue
+				}
+				refs.Messages[i] = MessageWithButton{Message: edited, Button: button}
+			} else {
+				edited, err := b.Bot.Edit(ref.Message, text, ref.Button)
+				if err != nil {
+					b.logger.Warn("Failed to edit message", "error", err)
+					continue
+				}
+				refs.Messages[i].Message = edited
+			}
+		}
+
+		return nil
+	}
 }

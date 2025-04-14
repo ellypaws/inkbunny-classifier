@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"gopkg.in/telebot.v4"
-
-	"classifier/pkg/telegram/parser"
 )
 
 // Deprecated: does not do anything
@@ -14,37 +12,18 @@ func (b *Bot) Commands() error {
 	return nil
 }
 
+var (
+	falseButton = telebot.Btn{Text: "Report as false positive", Unique: "false"}
+	undoButton  = telebot.Btn{Text: "Undo", Unique: "undo"}
+)
+
 func (b *Bot) Handlers() error {
 	b.Bot.Handle("/start", b.handleSubscribe)
 	b.Bot.Handle("/stop", b.handleUnsubscribe)
+	b.Bot.Handle(telebot.OnPhoto, b.handleUpload)
+	b.Bot.Handle(&falseButton, b.handleReport(true))
+	b.Bot.Handle(&undoButton, b.handleReport(false))
 	return b.Watcher()
-}
-
-func (b *Bot) Notify(content string) ([]*telebot.Message, error) {
-	if len(b.Subscribers) == 0 {
-		b.logger.Warn("Cannot send message - no subscribers")
-		return nil, nil
-	}
-
-	message := parser.Parse(content)
-	var reference []*telebot.Message
-	for id, recipient := range b.Subscribers {
-		if recipient == nil {
-			b.logger.Warnf("%d has no recipient", id)
-			continue
-		}
-		b.logger.Debug("Sending message to Telegram", "user_id", id)
-		message, err := b.Bot.Send(recipient, message, &telebot.SendOptions{ParseMode: telebot.ModeMarkdownV2})
-		if err != nil {
-			b.logger.Error("Failed to send message", "error", err, "user_id", id)
-			return nil, fmt.Errorf("error sending to telegram: %w", err)
-		}
-
-		b.logger.Info("Message sent successfully", "user_id", id)
-		reference = append(reference, message)
-	}
-
-	return reference, nil
 }
 
 func (b *Bot) Edit(reference *telebot.Message, content any) (*telebot.Message, error) {

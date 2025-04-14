@@ -25,8 +25,20 @@ type Bot struct {
 	crypto      *lib.Crypto
 	key         string
 
+	references map[string]*MessageRef
+
 	mu     sync.Mutex
 	logger *log.Logger
+}
+
+type MessageRef struct {
+	Messages []MessageWithButton `json:"messages"`
+	Count    int                 `json:"count"`
+}
+
+type MessageWithButton struct {
+	Message *telebot.Message     `json:"message"`
+	Button  *telebot.ReplyMarkup `json:"button"`
 }
 
 type Subscribers = map[int64]*telebot.Chat
@@ -66,6 +78,8 @@ func New(token string, sid string, refreshRate time.Duration, classify bool, enc
 		crypto:      crypto,
 		key:         encryptionKey,
 
+		references: make(map[string]*MessageRef),
+
 		logger: logger,
 	}, nil
 }
@@ -90,6 +104,11 @@ func (b *Bot) Stop() error {
 
 const savePath = "telegram.json"
 
+type Settings struct {
+	Subscribers Subscribers            `json:"subscribers,omitempty"`
+	References  map[string]*MessageRef `json:"references,omitempty"`
+}
+
 func (b *Bot) save() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -99,7 +118,11 @@ func (b *Bot) save() {
 		return
 	}
 	defer f.Close()
-	if err := utils.Encode(f, b.Subscribers); err != nil {
+	settings := Settings{
+		Subscribers: b.Subscribers,
+		References:  b.references,
+	}
+	if err := utils.Encode(f, settings); err != nil {
 		b.logger.Error("Failed to encode save file", "error", err, "path", savePath)
 	}
 }
@@ -113,13 +136,21 @@ func (b *Bot) load() {
 		return
 	}
 	defer f.Close()
-	subscribers, err := utils.Decode[Subscribers](f)
+	settings, err := utils.Decode[Settings](f)
 	if err != nil {
 		b.logger.Error("Failed to load save file", "error", err, "path", savePath)
 		return
 	}
-	if len(subscribers) > 0 {
-		b.Subscribers = subscribers
-		b.logger.Debugf("Loaded %d subscribers from %s file", len(subscribers), savePath)
+	if len(settings.Subscribers) > 0 {
+		b.Subscribers = settings.Subscribers
+		b.logger.Debugf("Loaded %d subscribers from %s file", len(settings.Subscribers), savePath)
+	} else {
+		b.logger.Warnf("No subscribers found in %s file", savePath)
+	}
+	if len(settings.References) > 0 {
+		b.references = settings.References
+		b.logger.Debugf("Loaded %d references from %s file", len(settings.References), savePath)
+	} else {
+		b.logger.Warnf("No references found in %s file", savePath)
 	}
 }
