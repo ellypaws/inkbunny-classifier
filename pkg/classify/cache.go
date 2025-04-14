@@ -57,7 +57,7 @@ func (c *cache) Predict(ctx context.Context, name, key string, file io.Reader) (
 	c.RLock()
 	if v, ok := c.predictions[name]; ok {
 		c.RUnlock()
-		return v, nil
+		return maps.Clone(v), nil
 	}
 	c.RUnlock()
 
