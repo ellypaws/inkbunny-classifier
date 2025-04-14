@@ -185,3 +185,20 @@ func (c *CryptoFile) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (c *CryptoFile) Close() error { return c.file.Close() }
+
+// OpenWithMethod returns an open function using a method such as Decoder or Encrypt, which implements io.ReadSeekCloser
+func (c *Crypto) OpenWithMethod(method func(io.Reader) (io.Reader, error)) func(string) (*CryptoFile, error) {
+	return func(path string) (*CryptoFile, error) {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("error opening file: %w", err)
+		}
+
+		decoder, err := method(file)
+		if err != nil {
+			return nil, fmt.Errorf("error making decoder: %w", err)
+		}
+
+		return &CryptoFile{decoder, file}, nil
+	}
+}

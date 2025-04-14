@@ -52,11 +52,11 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	classifyConfig := classifyConfig[*os.File]{
+	classifyConfig := classifyConfig[*lib.CryptoFile]{
 		enabled:   shouldClassify,
 		semaphore: make(chan struct{}, runtime.NumCPU()*2),
 		crypto:    crypto,
-		method:    os.Open,
+		method:    crypto.OpenWithMethod(crypto.Encrypt), // because we expect local files to be unencrypted, we encrypt before calling classify.Predict
 	}
 
 	if !distanceConfig.enabled && !classifyConfig.enabled {
@@ -75,7 +75,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 
 // walkDir traverses the folder rooted at "root" and, for each image file,
 // spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
-func walkDir(ctx context.Context, root string, max int, results chan<- *Result, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[*os.File]) {
+func walkDir(ctx context.Context, root string, max int, results chan<- *Result, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[*lib.CryptoFile]) {
 	defer close(results)
 	if ctx == nil {
 		ctx = context.Background()

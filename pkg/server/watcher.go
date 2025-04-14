@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+
 	"github.com/ellypaws/inkbunny/api"
 
 	"classifier/pkg/lib"
@@ -38,7 +39,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		enabled:   shouldClassify,
 		semaphore: make(chan struct{}, runtime.NumCPU()*2),
 		crypto:    crypto,
-		method:    os.Open,
+		method:    os.Open, // we expect the files to already be encrypted after calling utils.DownloadEncrypt
 	}
 
 	if !distanceConfig.enabled && !classifyConfig.enabled {

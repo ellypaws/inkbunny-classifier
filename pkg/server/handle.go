@@ -147,7 +147,7 @@ type classifyConfig[R io.ReadSeekCloser] struct {
 	method    func(string) (R, error)
 }
 
-func Handle(ctx context.Context, path string, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[*os.File]) (*Result, error) {
+func Handle[R io.ReadSeekCloser](ctx context.Context, path string, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[R]) (*Result, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
