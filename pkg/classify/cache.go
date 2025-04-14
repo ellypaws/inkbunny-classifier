@@ -50,7 +50,9 @@ func (c *cache) Load(name string) error {
 	return nil
 }
 
-func (c *cache) Predict(ctx context.Context, name string, file io.Reader) (Prediction, error) {
+// Predict expects file to already be encrypted if needed, such as [classifier/pkg/lib.Crypto.Encrypt].
+// As such, it will not call these methods for you, and it is up to the caller to call them.
+func (c *cache) Predict(ctx context.Context, name, key string, file io.Reader) (Prediction, error) {
 	c.RLock()
 	if v, ok := c.predictions[name]; ok {
 		c.RUnlock()
@@ -58,7 +60,7 @@ func (c *cache) Predict(ctx context.Context, name string, file io.Reader) (Predi
 	}
 	c.RUnlock()
 
-	d, err := Predict(ctx, file)
+	d, err := Predict(ctx, name, key, file)
 	if err != nil {
 		return nil, err
 	}

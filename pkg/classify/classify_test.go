@@ -13,10 +13,9 @@ import (
 
 //go:embed jeffy.png
 var file []byte
-var image = bytes.NewReader(file)
 
 func TestPredict(t *testing.T) {
-	prediction, err := Predict(context.Background(), image)
+	prediction, err := Predict(context.Background(), "image", "", bytes.NewReader(file))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +26,7 @@ func TestCache_Predict(t *testing.T) {
 	DefaultCache.reset()
 	for range 5 {
 		now := time.Now()
-		prediction, err := DefaultCache.Predict(context.Background(), "image", image)
+		prediction, err := DefaultCache.Predict(context.Background(), "image", "", bytes.NewReader(file))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,7 +79,7 @@ func TestCache_PredictURL(t *testing.T) {
 
 func BenchmarkPredict(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, err := Predict(context.Background(), image)
+		_, err := Predict(context.Background(), "image", "", bytes.NewReader(file))
 		if err != nil {
 			b.Fatal(err)
 		}

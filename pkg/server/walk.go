@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/lucasb-eyer/go-colorful"
 
+	"classifier/pkg/lib"
 	"classifier/pkg/utils"
 )
 
@@ -22,6 +23,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 	folder := r.URL.Query().Get("folder")
 	maxStr := r.URL.Query().Get("max")
 	shouldClassify := r.URL.Query().Get("classify") == "true"
+	encryptKey := r.URL.Query().Get("encrypt_key")
 
 	if folder == "" {
 		http.Error(w, "folder parameter is required", http.StatusBadRequest)
@@ -45,9 +47,16 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	classifyConfig := classifyConfig{
+	crypto, err := lib.NewCrypto(encryptKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	classifyConfig := classifyConfig[*os.File]{
 		enabled:   shouldClassify,
 		semaphore: make(chan struct{}, runtime.NumCPU()*2),
+		crypto:    crypto,
+		method:    os.Open,
 	}
 
 	if !distanceConfig.enabled && !classifyConfig.enabled {
@@ -66,7 +75,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 
 // walkDir traverses the folder rooted at "root" and, for each image file,
 // spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
-func walkDir(ctx context.Context, root string, max int, results chan<- *Result, distanceConfig distanceConfig, classifyConfig classifyConfig) {
+func walkDir(ctx context.Context, root string, max int, results chan<- *Result, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[*os.File]) {
 	defer close(results)
 	if ctx == nil {
 		ctx = context.Background()
@@ -97,7 +106,7 @@ func walkDir(ctx context.Context, root string, max int, results chan<- *Result, 
 
 		go func() {
 			defer wg.Done()
-			result, err := Handle(ctx, path, os.Open, distanceConfig, classifyConfig)
+			result, err := Handle(ctx, path, distanceConfig, classifyConfig)
 			if err != nil {
 				return
 			}

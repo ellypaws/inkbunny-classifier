@@ -61,7 +61,7 @@ func (b *Bot) Watcher() error {
 		}
 		b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
 
-		prediction, err := classify.DefaultCache.Predict(ctx, submission.FileURLFull, file)
+		prediction, err := classify.DefaultCache.Predict(ctx, submission.FileURLFull, b.crypto.Key(), file)
 		file.Close()
 		if err != nil {
 			b.logger.Errorf("Error predicting submission: %v", err)

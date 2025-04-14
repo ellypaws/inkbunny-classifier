@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 
+	"classifier/pkg/lib"
 	"classifier/pkg/utils"
 	"classifier/pkg/walker"
 )
@@ -20,6 +21,7 @@ type Config struct {
 	Max       int
 	Skipper   func(path string) bool
 	Semaphore chan struct{}
+	Crypto    *lib.Crypto
 }
 
 // WalkDir traverses the folder rooted at "root" and, for each image file,
@@ -41,7 +43,12 @@ func Do(args walker.Args[Config]) (Result, error) {
 		return Result{Path: args.Path}, err
 	}
 	defer file.Close()
-	prediction, err := DefaultCache.Predict(args.Context, args.Path, file)
+
+	encrypt, err := args.Args.Crypto.Encrypt(file)
+	if err != nil {
+		return Result{Path: args.Path}, err
+	}
+	prediction, err := DefaultCache.Predict(args.Context, args.Path, args.Args.Crypto.Key(), encrypt)
 	if err != nil {
 		log.Error("Error classifying", "path", args.Path, "err", err)
 		return Result{Path: args.Path, Prediction: nil}, err

@@ -4,25 +4,24 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image"
 	_ "image/gif"
-	"image/jpeg"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"iter"
+	"maps"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
-	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 
 	"classifier/pkg/utils"
 )
 
-type Prediction = map[string]float64
+type Prediction map[string]float64
 
 var bodyPool = utils.NewPoolMake[*bytes.Buffer]()
 
@@ -38,25 +37,33 @@ func init() {
 	}
 }
 
-func Predict(ctx context.Context, file io.Reader) (Prediction, error) {
+// Sorted returns a sorted map of the predictions in descending order.
+func (p Prediction) Sorted() iter.Seq2[string, float64] {
+	s := utils.MapToSlice(p)
+	utils.SortMapByValue(utils.MapToSlice(p))
+	return s.Backward()
+}
+
+// Filter returns the modified prediction map with only the predictions that have a confidence greater than or equal to min.
+func (p Prediction) Filter(min float64) Prediction {
+	maps.DeleteFunc(p, func(_ string, confidence float64) bool { return confidence < min })
+	return p
+}
+
+// Predict expects file to already be encrypted if needed, such as [classifier/pkg/lib.Crypto.Encrypt].
+// As such, it will not call these methods for you, and it is up to the caller to call them.
+func Predict(ctx context.Context, name, key string, file io.Reader) (Prediction, error) {
 	body := bodyPool.Get()
 	body.Reset()
 	defer bodyPool.Put(body)
 
 	writer := multipart.NewWriter(body)
-
-	part, err := writer.CreateFormFile("file", "image")
+	part, err := writer.CreateFormFile("file", name)
 	if err != nil {
 		return nil, err
 	}
 
-	src, _, err := image.Decode(file)
-	if err != nil {
-		return nil, err
-	}
-	dst := image.NewRGBA(image.Rect(0, 0, 640, 640))
-	draw.NearestNeighbor.Scale(dst, dst.Rect, src, src.Bounds(), draw.Over, nil)
-	err = jpeg.Encode(part, dst, nil)
+	_, err = io.Copy(part, file)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +73,10 @@ func Predict(ctx context.Context, file io.Reader) (Prediction, error) {
 		return nil, err
 	}
 
+	predictURL := predictURL
+	if key != "" {
+		predictURL = fmt.Sprintf("%s?key=%s", predictURL, key)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, predictURL, body)
 	if err != nil {
 		return nil, err
@@ -82,9 +93,7 @@ func Predict(ctx context.Context, file io.Reader) (Prediction, error) {
 }
 
 func PredictURL(ctx context.Context, path string) (Prediction, error) {
-	params := url.Values{
-		"url": {path},
-	}
+	params := url.Values{"url": {path}}
 	requestURL := fmt.Sprintf("%s?%s", predictURL, params.Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, nil)
 	if err != nil {

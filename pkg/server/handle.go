@@ -7,6 +7,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 	"classifier/pkg/classify"
 	"classifier/pkg/distance"
+	"classifier/pkg/lib"
 )
 
 func Respond[T any](w http.ResponseWriter, r *http.Request, worker iter.Seq[T]) {
@@ -74,26 +76,27 @@ type Result struct {
 	Prediction *classify.Prediction `json:"prediction,omitempty"`
 }
 
-type distanceConfig struct {
+type distanceConfig[R io.ReadSeekCloser] struct {
 	enabled   bool
 	target    colorful.Color
 	metric    func(colorful.Color, colorful.Color) float64
 	threshold float64
+	method    func(string) (R, error)
 	semaphore chan struct{}
 }
 
-func newDistanceConfig(r *http.Request) (distanceConfig, error) {
+func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
 	colorHex := r.URL.Query().Get("color")
 	thresholdStr := r.URL.Query().Get("threshold")
 	metricStr := r.URL.Query().Get("metric")
 	shouldGetDistance := r.URL.Query().Get("distance") == "true"
 
 	if !shouldGetDistance {
-		return distanceConfig{enabled: false, semaphore: make(chan struct{}, 1)}, nil
+		return distanceConfig[*os.File]{enabled: false, semaphore: make(chan struct{}, 1)}, nil
 	}
 
 	if colorHex == "" {
-		return distanceConfig{enabled: false, semaphore: make(chan struct{}, 1)}, errors.New("folder and color parameters are required")
+		return distanceConfig[*os.File]{enabled: false, semaphore: make(chan struct{}, 1)}, errors.New("folder and color parameters are required")
 	}
 
 	threshold := 0.1
@@ -106,7 +109,7 @@ func newDistanceConfig(r *http.Request) (distanceConfig, error) {
 	// parse the hex color using go-colorful (expects "#RRGGBB")
 	target, err := colorful.Hex(colorHex)
 	if err != nil {
-		return distanceConfig{enabled: false, semaphore: make(chan struct{}, 1)}, errors.New("invalid color format; use hex (e.g. #ff0000)")
+		return distanceConfig[*os.File]{enabled: false, semaphore: make(chan struct{}, 1)}, errors.New("invalid color format; use hex (e.g. #ff0000)")
 	}
 
 	metric := colorful.Color.DistanceLab
@@ -127,21 +130,24 @@ func newDistanceConfig(r *http.Request) (distanceConfig, error) {
 		metric = colorful.Color.DistanceLab
 	}
 
-	return distanceConfig{
+	return distanceConfig[*os.File]{
 		enabled:   shouldGetDistance,
 		target:    target,
 		metric:    metric,
 		threshold: threshold,
+		method:    os.Open,
 		semaphore: make(chan struct{}, runtime.NumCPU()),
 	}, nil
 }
 
-type classifyConfig struct {
+type classifyConfig[R io.ReadSeekCloser] struct {
 	enabled   bool
 	semaphore chan struct{}
+	crypto    *lib.Crypto
+	method    func(string) (R, error)
 }
 
-func Handle[R io.ReadSeekCloser](ctx context.Context, path string, method func(string) (R, error), distanceConfig distanceConfig, classifyConfig classifyConfig) (*Result, error) {
+func Handle(ctx context.Context, path string, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[*os.File]) (*Result, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -160,7 +166,7 @@ func Handle[R io.ReadSeekCloser](ctx context.Context, path string, method func(s
 		if !distanceConfig.enabled {
 			return
 		}
-		file, err := method(path)
+		file, err := distanceConfig.method(path)
 		if err != nil {
 			log.Errorf("Error opening file %s: %v", path, err)
 			return
@@ -191,7 +197,7 @@ func Handle[R io.ReadSeekCloser](ctx context.Context, path string, method func(s
 		if !classifyConfig.enabled {
 			return
 		}
-		file, err := method(path)
+		file, err := classifyConfig.method(path)
 		if err != nil {
 			log.Errorf("Error opening file %s: %v", path, err)
 			return
@@ -202,7 +208,7 @@ func Handle[R io.ReadSeekCloser](ctx context.Context, path string, method func(s
 			return
 		default:
 		}
-		prediction, err := classify.DefaultCache.Predict(ctx, path, file)
+		prediction, err := classify.DefaultCache.Predict(ctx, path, classifyConfig.crypto.Key(), file)
 		select {
 		case <-ctx.Done():
 			return

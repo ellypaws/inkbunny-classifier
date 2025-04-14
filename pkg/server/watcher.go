@@ -23,21 +23,22 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	shouldClassify := r.URL.Query().Get("classify") == "true"
 	refreshRate := r.URL.Query().Get("refresh_rate_seconds")
 
-	crypto, err := lib.NewCrypto(encryptKey)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	distanceConfig, err := newDistanceConfig(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	classifyConfig := classifyConfig{
+	crypto, err := lib.NewCrypto(encryptKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	classifyConfig := classifyConfig[*os.File]{
 		enabled:   shouldClassify,
 		semaphore: make(chan struct{}, runtime.NumCPU()*2),
+		crypto:    crypto,
+		method:    os.Open,
 	}
 
 	if !distanceConfig.enabled && !classifyConfig.enabled {
@@ -66,15 +67,14 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		}
 
 		fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
-		_, err = utils.DownloadEncrypt(r.Context(), crypto, submission.FileURLFull, fileName)
+		_, err = utils.DownloadEncrypt(r.Context(), classifyConfig.crypto, submission.FileURLFull, fileName)
 		if err != nil {
 			log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
 			return
 		}
 		log.Debugf("Downloaded submission: %v", submission.FileURLFull)
 
-		result, err := Handle(r.Context(), fileName, crypto.Open, distanceConfig, classifyConfig)
-
+		result, err := Handle(r.Context(), fileName, distanceConfig, classifyConfig)
 		if err != nil {
 			log.Errorf("Error processing submission %s: %v", submission.SubmissionID, err)
 			return
