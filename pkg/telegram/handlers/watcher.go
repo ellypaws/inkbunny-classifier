@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,12 +52,21 @@ func (b *Bot) Watcher() error {
 		}
 
 		fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
-		file, err := utils.DownloadEncrypt(b.context, b.crypto, submission.FileURLFull, fileName)
-		if err != nil {
-			b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
-			return
+
+		var file io.ReadSeekCloser
+		if utils.FileExists(fileName) {
+			file, err = os.Open(fileName)
+			if err != nil {
+				b.logger.Errorf("Error opening file %s: %v", submission.FileURLFull, err)
+			}
+		} else {
+			file, err = utils.DownloadEncrypt(b.context, b.crypto, submission.FileURLFull, fileName)
+			if err != nil {
+				b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
+				return
+			}
+			b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
 		}
-		b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
 
 		prediction, err := classify.DefaultCache.Predict(b.context, submission.FileURLFull, b.crypto.Key(), file)
 		file.Close()
