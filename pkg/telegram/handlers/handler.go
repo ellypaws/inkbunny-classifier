@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
 
 	"gopkg.in/telebot.v4"
 )
@@ -24,79 +23,6 @@ func (b *Bot) Handlers() error {
 	b.Bot.Handle(&falseButton, b.handleReport(true))
 	b.Bot.Handle(&undoButton, b.handleReport(false))
 	return b.Watcher()
-}
-
-func (b *Bot) Edit(reference *telebot.Message, content any) (*telebot.Message, error) {
-	if id, chatID := reference.MessageSig(); id == "" || chatID == 0 {
-		b.logger.Warn("Cannot edit message - invalid reference")
-		return nil, fmt.Errorf("invalid reference")
-	}
-
-	b.logger.Debug(
-		"Editing message in Telegram",
-		"message_id", reference.ID,
-		"channel_id", reference.Chat.ID,
-		"thread_id", reference.ThreadID,
-	)
-
-	edited, err := b.Bot.Edit(reference, content, &telebot.SendOptions{
-		ParseMode: telebot.ModeMarkdownV2,
-		ThreadID:  reference.ThreadID,
-	})
-	if err != nil {
-		b.logger.Error(
-			"Failed to edit message in Telegram",
-			"error", err,
-			"message_id", reference.ID,
-			"chat_id", reference.Chat.ID,
-			"thread_id", reference.ThreadID,
-		)
-		return nil, fmt.Errorf("error editing message: %w", err)
-	}
-
-	b.logger.Info(
-		"Successfully edited message in Telegram",
-		"message_id", reference.ID,
-		"chat_id", reference.Chat.ID,
-		"thread_id", reference.ThreadID,
-	)
-
-	return edited, nil
-}
-
-func (b *Bot) Delete(reference *telebot.Message) error {
-	if id, chatID := reference.MessageSig(); id == "" || chatID == 0 {
-		b.logger.Warn("Cannot delete message - invalid reference")
-		return fmt.Errorf("invalid reference")
-	}
-
-	b.logger.Debug(
-		"Deleting message from Telegram",
-		"message_id", reference.ID,
-		"chat_id", reference.Chat.ID,
-		"thread_id", reference.ThreadID,
-	)
-
-	err := b.Bot.Delete(reference)
-	if err != nil {
-		b.logger.Error(
-			"Failed to delete message from Telegram",
-			"error", err,
-			"message_id", reference.ID,
-			"chat_id", reference.Chat.ID,
-			"thread_id", reference.ThreadID,
-		)
-		return fmt.Errorf("error deleting message: %w", err)
-	}
-
-	b.logger.Info(
-		"Successfully deleted message from Telegram",
-		"message_id", reference.ID,
-		"chat_id", reference.Chat.ID,
-		"thread_id", reference.ThreadID,
-	)
-
-	return nil
 }
 
 func (b *Bot) handleSubscribe(c telebot.Context) error {
