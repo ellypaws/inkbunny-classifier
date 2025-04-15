@@ -24,7 +24,6 @@ type Bot struct {
 	refreshRate time.Duration
 	classify    bool
 	crypto      *lib.Crypto
-	key         string
 
 	references map[string]*MessageRef
 
@@ -79,7 +78,6 @@ func New(token string, sid string, refreshRate time.Duration, classify bool, enc
 		refreshRate: refreshRate,
 		classify:    classify,
 		crypto:      crypto,
-		key:         encryptionKey,
 
 		references: make(map[string]*MessageRef),
 

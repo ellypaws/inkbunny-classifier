@@ -73,8 +73,8 @@ func (b *Bot) Watcher() error {
 		}
 		b.logger.Debugf("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
 
-		if b.key != "" {
-			submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.key)
+		if b.crypto.Key() != "" {
+			submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.crypto.Key())
 		}
 		yield(Result{
 			Path:       submission.FileURLFull,
