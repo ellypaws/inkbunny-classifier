@@ -246,7 +246,7 @@
             <button class="tab active" id="watchTab">Watch Mode</button>
         </div>
         <!-- Local Files Content -->
-        <div id="localContent" style="display: none;">
+        <div id="localContent" hidden>
             <form id="localForm">
                 <label>
                     Folder Path:
@@ -562,14 +562,14 @@
 
     function switchTab(tabName) {
         if (tabName === 'local') {
-            document.getElementById('localContent').style.display = 'block';
-            document.getElementById('watchContent').style.display = 'none';
+            document.getElementById('localContent').hidden = false;
+            document.getElementById('watchContent').hidden = true;
             document.getElementById('localTab').classList.add('active');
             document.getElementById('watchTab').classList.remove('active');
             localStorage.setItem('activeTab', 'local');
         } else if (tabName === 'watch') {
-            document.getElementById('localContent').style.display = 'none';
-            document.getElementById('watchContent').style.display = 'block';
+            document.getElementById('localContent').hidden = true;
+            document.getElementById('watchContent').hidden = false;
             document.getElementById('localTab').classList.remove('active');
             document.getElementById('watchTab').classList.add('active');
             localStorage.setItem('activeTab', 'watch');
