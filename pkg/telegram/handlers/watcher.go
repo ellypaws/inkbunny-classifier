@@ -138,14 +138,14 @@ func (b *Bot) Watcher() error {
 
 func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
 	class, confidence := result.Prediction.Max()
-	b.logger.Infof("⚠️ Detected filtered (%.2f%%) for https://inkbunny.net/s/%s by %q", confidence*100, result.Submission.SubmissionID, result.Submission.Username)
+	b.logger.Infof("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
 
 	if len(b.Subscribers) == 0 {
 		b.logger.Warn("Cannot send message - no subscribers")
 		return nil, nil
 	}
 
-	message := parser.Parsef("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
+	message := parser.Parsef("⚠️ Detected filtered (%.2f%%) for https://inkbunny.net/s/%s by %q", confidence*100, result.Submission.SubmissionID, result.Submission.Username)
 	button := utils.Single(utils.CopyButton(falseButton, result.Submission.SubmissionID), utils.CopyButton(dangerButton, result.Submission.SubmissionID))
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
