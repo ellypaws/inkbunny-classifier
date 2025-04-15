@@ -20,6 +20,7 @@ import (
 	"classifier/pkg/lib"
 )
 
+// Respond sends any results from the worker to the client.
 func Respond[T any](w http.ResponseWriter, r *http.Request, worker iter.Seq[T]) {
 	enc := json.NewEncoder(w)
 	if flusher, ok := w.(http.Flusher); ok {
@@ -147,6 +148,7 @@ type classifyConfig[R io.ReadSeekCloser] struct {
 	method    func(string) (R, error)
 }
 
+// Handle processes a file and returns a Result.
 func Handle[R io.ReadSeekCloser](ctx context.Context, path string, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[R]) (*Result, error) {
 	select {
 	case <-ctx.Done():
