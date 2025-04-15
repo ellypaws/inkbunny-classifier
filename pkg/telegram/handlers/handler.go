@@ -12,7 +12,7 @@ func (b *Bot) Commands() error {
 }
 
 var (
-	falseButton      = telebot.Btn{Text: "Report as false positive", Unique: "false"}
+	falseButton      = telebot.Btn{Text: "False positive", Unique: "false"}
 	undoButton       = telebot.Btn{Text: "Undo", Unique: "undo"}
 	dangerButton     = telebot.Btn{Text: "⚠️ Danger", Unique: "danger"}
 	undoDangerButton = telebot.Btn{Text: "Undo", Unique: "undo_danger"}
