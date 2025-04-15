@@ -1069,6 +1069,7 @@
         if (result.url) {
             const anchor = document.createElement('a');
             anchor.href = result.url
+            img.alt = result.url
             anchor.target = '_blank';
             itemDiv.appendChild(anchor);
             anchor.appendChild(img);
