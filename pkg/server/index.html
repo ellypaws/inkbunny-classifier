@@ -870,11 +870,10 @@
                     outline: ${color} solid 1px;
                     transition: 0.1s ease-in-out;
                 }
-                .class_${key}_outline:hover {
+                .class_${key}_outline:hover, .class_${key}_outline:focus {
                     outline: ${color} solid 5px;
                     transform: translateY(-2px);
-                }
-                    `));
+                }`));
                 definedClasses.add(key);
             }
         });
@@ -1116,6 +1115,7 @@
     function createResultItem(result) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'result-item';
+        itemDiv.tabIndex = 0;
 
         const img = document.createElement('img');
         img.src = `${serverURL}/file/${encodeURIComponent(result.path)}`;
