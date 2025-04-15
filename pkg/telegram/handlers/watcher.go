@@ -210,14 +210,16 @@ func previousState(states []string) state {
 
 func buildText(base string, refs *MessageRef) string {
 	var b strings.Builder
-	if refs.FalseCount > 0 {
-		b.WriteString(fmt.Sprintf("✅ %d reported this as a false positive", refs.FalseCount))
+	falseReports := utils.CountEqual(refs.Reports, false)
+	dangerReports := len(refs.Reports) - falseReports
+	if falseReports > 0 {
+		b.WriteString(fmt.Sprintf("✅ %d reported this as a false positive", falseReports))
 	}
-	if refs.DangerCount > 0 {
+	if dangerReports > 0 {
 		if b.Len() > 0 {
 			b.WriteByte('\n')
 		}
-		b.WriteString(fmt.Sprintf("⚠️ %d reported this as dangerous", refs.DangerCount))
+		b.WriteString(fmt.Sprintf("⚠️ %d reported this as dangerous", dangerReports))
 	}
 	if b.Len() > 0 {
 		return fmt.Sprintf("%s\n\n%s", base, b.String())
@@ -243,29 +245,30 @@ func (b *Bot) handleReport(action state) func(c telebot.Context) error {
 			return nil
 		}
 
+		user := c.Sender()
+		if user == nil {
+			b.logger.Warn("No user found")
+			return nil
+		}
+
 		if err := c.Notify(utils.RandomActivity()); err != nil {
 			b.logger.Error("Failed to notify users", "error", err, "users", len(b.Subscribers))
 			return nil
 		}
 
-		prev := previousState(states[1:])
 		switch action {
-		case falsePositive:
-			if prev == danger {
-				refs.DangerCount--
+		case falsePositive, danger:
+			if refs.Reports == nil {
+				refs.Reports = make(map[int64]bool)
 			}
-			refs.FalseCount++
+			refs.Reports[user.ID] = action == danger
 			submissionID = strings.Join([]string{submissionID, action.String()}, ",")
-		case undoFalsePositive:
-			refs.FalseCount--
-		case danger:
-			if prev == falsePositive {
-				refs.FalseCount--
-			}
-			refs.DangerCount++
-			submissionID = strings.Join([]string{submissionID, action.String()}, ",")
-		case undoDanger:
-			refs.DangerCount--
+		case undoFalsePositive, undoDanger:
+			delete(refs.Reports, user.ID)
+		}
+
+		if len(refs.Reports) == 0 {
+			refs.Reports = nil
 		}
 
 		var button *telebot.ReplyMarkup

@@ -53,3 +53,13 @@ func (s StableMap[K, V]) Seq2() iter.Seq2[K, V] {
 		}
 	}
 }
+
+func CountEqual[M ~map[K]V, K comparable, V comparable](m M, v V) int {
+	var i int
+	for _, value := range m {
+		if value == v {
+			i++
+		}
+	}
+	return i
+}
