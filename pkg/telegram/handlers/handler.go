@@ -12,18 +12,24 @@ func (b *Bot) Commands() error {
 }
 
 var (
-	falseButton = telebot.Btn{Text: "Report as false positive", Unique: "false"}
-	undoButton  = telebot.Btn{Text: "Undo", Unique: "undo"}
+	falseButton      = telebot.Btn{Text: "Report as false positive", Unique: "false"}
+	undoButton       = telebot.Btn{Text: "Undo", Unique: "undo"}
+	dangerButton     = telebot.Btn{Text: "⚠️ Danger", Unique: "danger"}
+	undoDangerButton = telebot.Btn{Text: "Undo", Unique: "undo_danger"}
 )
 
 func (b *Bot) Handlers() error {
 	b.Bot.Handle("/start", b.handleSubscribe)
 	b.Bot.Handle("/stop", b.handleUnsubscribe)
 	b.Bot.Handle(telebot.OnPhoto, b.handleUpload)
-	b.Bot.Handle(&falseButton, b.handleReport(true))
-	b.Bot.Handle(&undoButton, b.handleReport(false))
+	b.Bot.Handle(&falseButton, b.handleReport(falsePositive))
+	b.Bot.Handle(&undoButton, b.handleReport(undoFalsePositive))
+	b.Bot.Handle(&dangerButton, b.handleReport(danger))
+	b.Bot.Handle(&undoDangerButton, b.handleReport(undoDanger))
 	return b.Watcher()
 }
+
+const test = `󠀁󠁵󠁴󠁩󠁬󠁳󠀮󠁃󠁯󠁰󠁹󠁂󠁵󠁴󠁴󠁯󠁮󠀨󠁵󠁮󠁤󠁯󠁂󠁵󠁴󠁴󠁯󠁮󠀬󠀠󠁳󠁵󠁢󠁭󠁩󠁳󠁳󠁩󠁯󠁮󠁉󠁄󠀩󠁿`
 
 func (b *Bot) handleSubscribe(c telebot.Context) error {
 	chat := c.Chat()

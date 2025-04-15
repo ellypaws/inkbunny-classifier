@@ -146,8 +146,7 @@ func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
 	}
 
 	message := parser.Parsef("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
-	button := utils.Single(utils.CopyButton(falseButton, result.Submission.SubmissionID))
-
+	button := utils.Single(utils.CopyButton(falseButton, result.Submission.SubmissionID), utils.CopyButton(dangerButton, result.Submission.SubmissionID))
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
 		if b.context.Err() != nil {
@@ -172,21 +171,70 @@ func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
 	return references, nil
 }
 
+type state int
+
+const (
+	falsePositive state = iota
+	undoFalsePositive
+	danger
+	undoDanger
+)
+
+const (
+	falsePositiveState = "false_positive"
+	dangerState        = "danger"
+)
+
+func (s state) String() string {
+	switch s {
+	case falsePositive:
+		return falsePositiveState
+	case danger:
+		return dangerState
+	default:
+		return ""
+	}
+}
+
+func previousState(states []string) state {
+	for _, s := range states {
+		switch s {
+		case falsePositiveState:
+			return falsePositive
+		case dangerState:
+			return danger
+		}
+	}
+	return state(-1)
+}
+
+func buildText(base string, refs *MessageRef) string {
+	var b strings.Builder
+	if refs.FalseCount > 0 {
+		b.WriteString(fmt.Sprintf("✅ %d reported this as a false positive", refs.FalseCount))
+	}
+	if refs.DangerCount > 0 {
+		if b.Len() > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(fmt.Sprintf("⚠️ %d reported this as dangerous", refs.DangerCount))
+	}
+	if b.Len() > 0 {
+		return fmt.Sprintf("%s\n\n%s", base, b.String())
+	}
+	return base
+}
+
 // set isFalseReport to add refs.count, and will edit an undoButton on who clicked the button
-func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
+func (b *Bot) handleReport(action state) func(c telebot.Context) error {
 	return func(c telebot.Context) error {
 		defer b.save()
-		if err := c.Notify(utils.RandomActivity()); err != nil {
-			b.logger.Error("Failed to notify users", "error", err, "users", len(b.Subscribers))
-			return nil
-		}
-
-		submissionID := c.Data()
+		states := strings.SplitN(c.Data(), ",", 2)
+		submissionID := states[0]
 		if submissionID == "" {
 			b.logger.Warn("No submission ID found")
 			return nil
 		}
-
 		b.mu.Lock()
 		defer b.mu.Unlock()
 		refs, ok := b.references[submissionID]
@@ -195,13 +243,45 @@ func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 			return nil
 		}
 
+		if err := c.Notify(utils.RandomActivity()); err != nil {
+			b.logger.Error("Failed to notify users", "error", err, "users", len(b.Subscribers))
+			return nil
+		}
+
+		prev := previousState(states[1:])
+		switch action {
+		case falsePositive:
+			if prev == danger {
+				refs.DangerCount--
+			}
+			refs.FalseCount++
+			submissionID = strings.Join([]string{submissionID, action.String()}, ",")
+		case undoFalsePositive:
+			refs.FalseCount--
+		case danger:
+			if prev == falsePositive {
+				refs.FalseCount--
+			}
+			refs.DangerCount++
+			submissionID = strings.Join([]string{submissionID, action.String()}, ",")
+		case undoDanger:
+			refs.DangerCount--
+		}
+
 		var button *telebot.ReplyMarkup
-		if isFalseReport {
-			button = utils.Single(utils.CopyButton(undoButton, submissionID))
-			refs.Count++
-		} else {
-			button = utils.Single(utils.CopyButton(falseButton, submissionID))
-			refs.Count--
+		undoBtn := utils.CopyButton(undoButton, submissionID)
+		falseBtn := utils.CopyButton(falseButton, submissionID)
+		dangerBtn := utils.CopyButton(dangerButton, submissionID)
+		undoDangerBtn := utils.CopyButton(undoDangerButton, submissionID)
+		switch action {
+		case falsePositive:
+			button = utils.Single(undoBtn, dangerBtn)
+		case undoFalsePositive:
+			button = utils.Single(falseBtn, dangerBtn)
+		case danger:
+			button = utils.Single(falseBtn, undoDangerBtn)
+		case undoDanger:
+			button = utils.Single(falseBtn, dangerBtn)
 		}
 
 		reporterMessage := c.Message()
@@ -209,11 +289,8 @@ func (b *Bot) handleReport(isFalseReport bool) func(c telebot.Context) error {
 			b.logger.Error("Message cannot be nil")
 			return nil
 		}
-
-		text := strings.SplitN(reporterMessage.Text, "\n", 2)[0]
-		if refs.Count > 0 {
-			text = fmt.Sprintf("%s\n\n%d reported this as a false positive", text, refs.Count)
-		}
+		baseText := strings.SplitN(reporterMessage.Text, "\n", 2)[0]
+		text := buildText(baseText, refs)
 		for i, ref := range refs.Messages {
 			if ref.Message.Chat.ID == reporterMessage.Chat.ID {
 				edited, err := wrapper.Edit(b.Bot, ref.Message, text, button)
