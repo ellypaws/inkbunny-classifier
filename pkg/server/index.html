@@ -821,7 +821,19 @@
         availableClasses.forEach((key) => {
             if (!definedClasses.has(key)) {
                 const color = getClassColor(key);
-                styleEl.appendChild(document.createTextNode(`.class_${key} { background-color: ${color} !important; }\n`));
+                styleEl.appendChild(document.createTextNode(`
+                .class_${key} { 
+                    background-color: ${color} !important;
+                }
+                .class_${key}_outline {
+                    outline: ${color} solid 1px;
+                    transition: 0.1s ease-in-out;
+                }
+                .class_${key}_outline:hover {
+                    outline: ${color} solid 5px;
+                    transform: translateY(-2px);
+                }
+                    `));
                 definedClasses.add(key);
             }
         });
@@ -1134,7 +1146,7 @@
 
             // Highlight result item with top class
             const topKey = sortedKeys[0];
-            itemDiv.style.outline = `1px solid ${getClassColor(topKey)}`;
+            itemDiv.className = `result-item class_${topKey}_outline`;
         }
         return itemDiv;
     }
