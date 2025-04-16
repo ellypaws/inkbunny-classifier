@@ -47,9 +47,8 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	readSubs := make(map[string]*Result)
 	distanceWorker := distanceConfig.worker(r.Context())
 	classifyWorker := classifyConfig.worker(r.Context())
-
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList) *Result {
+	worker := utils.NewWorkerPool(30, func(submission api.SubmissionSearchList) *Result {
 		if !utils.IsImage(submission.FileURLFull) {
 			return nil
 		}
