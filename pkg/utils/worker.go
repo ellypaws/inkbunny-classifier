@@ -12,6 +12,7 @@ type WorkerPool[J any, R any] struct {
 	work    func(J, func(R))
 
 	closed    bool
+	closing   chan struct{}
 	jobs      chan jobRequest[J, R]
 	responses chan R
 }
@@ -32,6 +33,7 @@ func NewWorkerPool[J any, R any](workers int, work func(job J, yield func(R))) W
 		work:      work,
 		jobs:      make(chan jobRequest[J, R], workers),
 		responses: make(chan R),
+		closing:   make(chan struct{}),
 	}
 }
 
@@ -46,6 +48,15 @@ func (p *WorkerPool[_, _]) Closed() bool { return p.closed }
 func (p *WorkerPool[_, R]) Work() <-chan R {
 	p.working.Do(p.do)
 	return p.responses
+}
+
+func (p *WorkerPool[_, R]) Wait() {
+	<-p.closing
+	return
+}
+
+func (p *WorkerPool[_, R]) Done() <-chan struct{} {
+	return p.closing
 }
 
 // do launches worker goroutines that consume jobRequests.
@@ -75,6 +86,7 @@ func (p *WorkerPool[J, R]) do() {
 		workSet.Wait()
 		close(p.responses)
 		p.closed = true
+		close(p.closing)
 	}()
 }
 
