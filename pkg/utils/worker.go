@@ -89,7 +89,7 @@ func (p *WorkerPool[J, R]) Add(j ...J) {
 // The promise channel is buffered with one element.
 func (p *WorkerPool[J, R]) Promise(j J) <-chan R {
 	promiseCh := make(chan R)
-	p.jobs <- jobRequest[J, R]{job: j, promise: promiseCh}
+	go func() { p.jobs <- jobRequest[J, R]{job: j, promise: promiseCh} }()
 	return promiseCh
 }
 
