@@ -101,7 +101,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		if t, err := strconv.ParseInt(refreshRate, 10, 64); err != nil && t > 0 {
 			timeout = time.Duration(t) * time.Second
 		}
-		defer worker.Close()
+		defer func() { worker.Close(); classifyWorker.Close(); distanceWorker.Close() }()
 		for r.Context().Err() == nil {
 			select {
 			case <-r.Context().Done():
@@ -128,7 +128,9 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	worker.Work()
-	log.Info("Starting watcher", "distance", distanceConfig.enabled, "classify", shouldClassify)
+	classifyWorker.Work()
+	distanceWorker.Work()
+	log.Info("Starting watcher", "distance", distanceConfig.enabled, "classify", classifyConfig.enabled)
 	Respond(w, r, worker.Iter())
 	log.Info("Finished watching for new submissions")
 }
