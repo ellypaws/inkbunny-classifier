@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 
@@ -53,10 +52,9 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	classifyConfig := classifyConfig[*lib.CryptoFile]{
-		enabled:   shouldClassify,
-		semaphore: make(chan struct{}, runtime.NumCPU()*2),
-		crypto:    crypto,
-		method:    crypto.OpenWithMethod(crypto.Encrypt), // because we expect local files to be unencrypted, we encrypt before calling classify.Predict
+		enabled: shouldClassify,
+		crypto:  crypto,
+		method:  crypto.OpenWithMethod(crypto.Encrypt), // because we expect local files to be unencrypted, we encrypt before calling classify.Predict
 	}
 
 	if !distanceConfig.enabled && !classifyConfig.enabled {
@@ -90,6 +88,8 @@ func walkDir(ctx context.Context, root string, max int, results chan<- *Result, 
 		distanceConfig.metric = colorful.Color.DistanceLab
 	}
 
+	distanceWorker := distanceConfig.worker(ctx)
+	classifyWorker := classifyConfig.worker(ctx)
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
@@ -103,10 +103,9 @@ func walkDir(ctx context.Context, root string, max int, results chan<- *Result, 
 
 		count++
 		wg.Add(1)
-
 		go func() {
 			defer wg.Done()
-			result, err := Handle(ctx, path, distanceConfig, classifyConfig)
+			result, err := Collect(ctx, path, distanceWorker.Promise(path), classifyWorker.Promise(path))
 			if err != nil {
 				return
 			}
@@ -118,6 +117,11 @@ func walkDir(ctx context.Context, root string, max int, results chan<- *Result, 
 	if err != nil {
 		log.Errorf("error walking the path %s: %v", root, err)
 	}
-
+	distanceWorker.Work()
+	classifyWorker.Work()
 	wg.Wait()
+	distanceWorker.Close()
+	classifyWorker.Close()
+	distanceWorker.Wait()
+	classifyWorker.Wait()
 }

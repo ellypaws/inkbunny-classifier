@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -36,10 +35,9 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	classifyConfig := classifyConfig[*os.File]{
-		enabled:   shouldClassify,
-		semaphore: make(chan struct{}, runtime.NumCPU()*2),
-		crypto:    crypto,
-		method:    os.Open, // we expect the files to already be encrypted after calling utils.DownloadEncrypt
+		enabled: shouldClassify,
+		crypto:  crypto,
+		method:  os.Open, // we expect the files to already be encrypted after calling utils.DownloadEncrypt
 	}
 
 	if !distanceConfig.enabled && !classifyConfig.enabled {
@@ -47,15 +45,18 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	}
 
 	readSubs := make(map[string]*Result)
+	distanceWorker := distanceConfig.worker(r.Context())
+	classifyWorker := classifyConfig.worker(r.Context())
+
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList, yield func(*Result)) {
+	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList) *Result {
 		if !utils.IsImage(submission.FileURLFull) {
-			return
+			return nil
 		}
 		mu.RLock()
 		if _, ok := readSubs[submission.SubmissionID]; ok {
 			mu.RUnlock()
-			return
+			return nil
 		}
 		mu.RUnlock()
 
@@ -71,20 +72,20 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		_, err = utils.DownloadEncrypt(r.Context(), classifyConfig.crypto, submission.FileURLFull, fileName)
 		if err != nil {
 			log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
-			return
+			return nil
 		}
 		log.Debugf("Downloaded submission: %v", submission.FileURLFull)
 
-		result, err := Handle(r.Context(), fileName, distanceConfig, classifyConfig)
+		result, err := Collect(r.Context(), fileName, distanceWorker.Promise(fileName), classifyWorker.Promise(fileName))
 		if err != nil {
 			log.Errorf("Error processing submission %s: %v", submission.SubmissionID, err)
-			return
+			return nil
 		}
 		if result == nil {
-			return
+			return nil
 		}
 		if result.Prediction == nil && result.Color == nil {
-			return
+			return nil
 		}
 
 		if encryptKey != "" {
@@ -92,8 +93,8 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		}
 		result.URL = fmt.Sprintf("https://inkbunny.net/s/%s", submission.SubmissionID)
 
-		yield(result)
 		go func() { mu.Lock(); readSubs[submission.SubmissionID] = result; mu.Unlock() }()
+		return result
 	})
 
 	go func() {

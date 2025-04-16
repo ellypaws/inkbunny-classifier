@@ -10,7 +10,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"sync"
 
 	"github.com/charmbracelet/log"
 	"github.com/lucasb-eyer/go-colorful"
@@ -18,16 +17,20 @@ import (
 	"classifier/pkg/classify"
 	"classifier/pkg/distance"
 	"classifier/pkg/lib"
+	"classifier/pkg/utils"
 )
 
 // Respond sends any results from the worker to the client.
-func Respond[T any](w http.ResponseWriter, r *http.Request, worker iter.Seq[T]) {
+func Respond[P ~*T, T any](w http.ResponseWriter, r *http.Request, worker iter.Seq[P]) {
 	enc := json.NewEncoder(w)
 	if flusher, ok := w.(http.Flusher); ok {
 		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		for res := range worker {
+			if res == nil {
+				continue
+			}
 			select {
 			case <-r.Context().Done():
 				break // interrupt detected
@@ -52,8 +55,11 @@ func Respond[T any](w http.ResponseWriter, r *http.Request, worker iter.Seq[T]) 
 			log.Error("error sending exit event", "err", err)
 		}
 	} else {
-		var allResults []T
+		var allResults []P
 		for res := range worker {
+			if res == nil {
+				continue
+			}
 			select {
 			case <-r.Context().Done():
 				break
@@ -83,7 +89,6 @@ type distanceConfig[R io.ReadSeekCloser] struct {
 	metric    func(colorful.Color, colorful.Color) float64
 	threshold float64
 	method    func(string) (R, error)
-	semaphore chan struct{}
 }
 
 func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
@@ -93,11 +98,11 @@ func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
 	shouldGetDistance := r.URL.Query().Get("distance") == "true"
 
 	if !shouldGetDistance {
-		return distanceConfig[*os.File]{enabled: false, semaphore: make(chan struct{}, 1)}, nil
+		return distanceConfig[*os.File]{enabled: false}, nil
 	}
 
 	if colorHex == "" {
-		return distanceConfig[*os.File]{enabled: false, semaphore: make(chan struct{}, 1)}, errors.New("folder and color parameters are required")
+		return distanceConfig[*os.File]{enabled: false}, errors.New("folder and color parameters are required")
 	}
 
 	threshold := 0.1
@@ -110,7 +115,7 @@ func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
 	// parse the hex color using go-colorful (expects "#RRGGBB")
 	target, err := colorful.Hex(colorHex)
 	if err != nil {
-		return distanceConfig[*os.File]{enabled: false, semaphore: make(chan struct{}, 1)}, errors.New("invalid color format; use hex (e.g. #ff0000)")
+		return distanceConfig[*os.File]{enabled: false}, errors.New("invalid color format; use hex (e.g. #ff0000)")
 	}
 
 	metric := colorful.Color.DistanceLab
@@ -137,94 +142,92 @@ func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
 		metric:    metric,
 		threshold: threshold,
 		method:    os.Open,
-		semaphore: make(chan struct{}, runtime.NumCPU()),
 	}, nil
 }
 
-type classifyConfig[R io.ReadSeekCloser] struct {
-	enabled   bool
-	semaphore chan struct{}
-	crypto    *lib.Crypto
-	method    func(string) (R, error)
+func (d *distanceConfig[_]) worker(ctx context.Context) utils.WorkerPool[string, *distance.Distance] {
+	return utils.NewWorkerPool(runtime.NumCPU(), func(path string) *distance.Distance {
+		if !d.enabled {
+			return nil
+		}
+		log.Info("Starting distance worker", "path", path)
+		file, err := d.method(path)
+		if err != nil {
+			log.Errorf("Error opening file %s: %v", path, err)
+			return nil
+		}
+		defer file.Close()
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+		pixelDistance := distance.PixelDistance(ctx, path, file, d.target, d.threshold, d.metric)
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if !pixelDistance.Found {
+				log.Warnf("%s not found, lowest: %.3f", path, pixelDistance.Distance)
+				return nil
+			}
+			log.Debugf("Found %s %#v", path, pixelDistance)
+			return &pixelDistance
+		}
+	})
 }
 
-// Handle processes a file and returns a Result.
-func Handle[R io.ReadSeekCloser](ctx context.Context, path string, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[R]) (*Result, error) {
+type classifyConfig[R io.ReadSeekCloser] struct {
+	enabled bool
+	crypto  *lib.Crypto
+	method  func(string) (R, error)
+}
+
+func (d *classifyConfig[_]) worker(ctx context.Context) utils.WorkerPool[string, *classify.Prediction] {
+	return utils.NewWorkerPool(runtime.NumCPU(), func(path string) *classify.Prediction {
+		if !d.enabled {
+			return nil
+		}
+		log.Info("Starting classify worker", "path", path)
+		file, err := d.method(path)
+		if err != nil {
+			log.Errorf("Error opening file %s: %v", path, err)
+			return nil
+		}
+		defer file.Close()
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+		prediction, err := classify.DefaultCache.Predict(ctx, path, d.crypto.Key(), file)
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if err != nil {
+				log.Error("Error classifying", "path", path, "err", err)
+				return nil
+			}
+			log.Debugf("Found %s %#v", path, prediction)
+			return &prediction
+		}
+	})
+}
+
+// Collect processes a file and returns a Result.
+func Collect(ctx context.Context, path string, distancePromise <-chan *distance.Distance, predictionPromise <-chan *classify.Prediction) (*Result, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
 	}
 
-	var (
-		group  sync.WaitGroup
-		result = Result{Path: path}
-	)
-
-	distanceConfig.semaphore <- struct{}{}
-	group.Add(1)
-	go func(path string) {
-		defer func() { <-distanceConfig.semaphore; group.Done() }()
-		if !distanceConfig.enabled {
-			return
-		}
-		file, err := distanceConfig.method(path)
-		if err != nil {
-			log.Errorf("Error opening file %s: %v", path, err)
-			return
-		}
-		defer file.Close()
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		pixelDistance := distance.PixelDistance(ctx, path, file, distanceConfig.target, distanceConfig.threshold, distanceConfig.metric)
-		select {
-		case <-ctx.Done():
-		default:
-			if !pixelDistance.Found {
-				log.Warnf("%s not found, lowest: %.3f", path, pixelDistance.Distance)
-				return
-			}
-			result.Color = &pixelDistance
-			log.Debugf("Found %s %#v", path, pixelDistance)
-		}
-	}(path)
-
-	classifyConfig.semaphore <- struct{}{}
-	group.Add(1)
-	go func(path string) {
-		defer func() { <-classifyConfig.semaphore; group.Done() }()
-		if !classifyConfig.enabled {
-			return
-		}
-		file, err := classifyConfig.method(path)
-		if err != nil {
-			log.Errorf("Error opening file %s: %v", path, err)
-			return
-		}
-		defer file.Close()
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		prediction, err := classify.DefaultCache.Predict(ctx, path, classifyConfig.crypto.Key(), file)
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			if err != nil {
-				log.Error("Error classifying", "path", path, "err", err)
-				return
-			}
-			result.Prediction = &prediction
-			log.Debugf("Found %s %#v", path, prediction)
-		}
-	}(path)
-
-	group.Wait()
+	result := Result{
+		Path:       path,
+		Color:      <-distancePromise,
+		Prediction: <-predictionPromise,
+	}
 	if result.Prediction != nil || result.Color != nil {
 		return &result, nil
 	} else {
