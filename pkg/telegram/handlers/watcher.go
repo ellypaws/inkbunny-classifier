@@ -31,14 +31,14 @@ func (b *Bot) Watcher() error {
 	}
 
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(50, func(submission api.SubmissionSearchList, yield func(Result)) {
+	worker := utils.NewWorkerPool(30, func(submission api.SubmissionSearchList) *Result {
 		if !utils.IsImage(submission.FileURLFull) {
-			return
+			return nil
 		}
 		mu.RLock()
 		if _, ok := b.references[submission.SubmissionID]; ok {
 			mu.RUnlock()
-			return
+			return nil
 		}
 		mu.RUnlock()
 
@@ -56,7 +56,7 @@ func (b *Bot) Watcher() error {
 			_, err = utils.DownloadEncrypt(b.context, b.crypto, submission.FileURLFull, fileName)
 			if err != nil {
 				b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
-				return
+				return nil
 			}
 			b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
 		}
@@ -69,18 +69,18 @@ func (b *Bot) Watcher() error {
 		file.Close()
 		if err != nil {
 			b.logger.Errorf("Error predicting submission: %v", err)
-			return
+			return nil
 		}
 		b.logger.Debugf("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
 
 		if b.crypto.Key() != "" {
 			submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.crypto.Key())
 		}
-		yield(Result{
+		return &Result{
 			Path:       submission.FileURLFull,
 			Submission: submission,
 			Prediction: prediction,
-		})
+		}
 	})
 
 	go func() {
@@ -115,6 +115,9 @@ func (b *Bot) Watcher() error {
 		allowed = strings.Split(c, ",")
 	}
 	for res := range worker.Work() {
+		if res == nil {
+			continue
+		}
 		if len(res.Prediction.Minimum(0.75).Whitelist(allowed...)) == 0 {
 			b.mu.Lock()
 			b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}
@@ -136,7 +139,7 @@ func (b *Bot) Watcher() error {
 	return nil
 }
 
-func (b *Bot) Notify(result Result) ([]MessageWithButton, error) {
+func (b *Bot) Notify(result *Result) ([]MessageWithButton, error) {
 	class, confidence := result.Prediction.Max()
 	b.logger.Infof("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
 

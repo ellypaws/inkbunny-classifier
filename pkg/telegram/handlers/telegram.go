@@ -33,7 +33,7 @@ type Bot struct {
 }
 
 type MessageRef struct {
-	Result   Result              `json:"result,omitempty"`
+	Result   *Result             `json:"result,omitempty"`
 	Messages []MessageWithButton `json:"messages,omitempty"`
 	Reports  map[int64]bool      `json:"reports,omitempty"`
 }
