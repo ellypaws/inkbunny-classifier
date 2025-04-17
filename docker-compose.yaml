@@ -5,8 +5,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    ports:
+      - "7860:${CLASSIFIER_PORT:-7860}"
     environment:
       - USE_CUDA=${USE_CUDA:-false}
+      - PORT=${CLASSIFIER_PORT:-7860}
     volumes:
       - ./:/app
     networks:
