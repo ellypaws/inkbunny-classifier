@@ -2,7 +2,7 @@ module classifier
 
 go 1.24.2
 
-replace github.com/ellypaws/inkbunny/api => /cmd/dataset/vendor/github.com/ellypaws/inkbunny/api
+replace github.com/ellypaws/inkbunny/api => ./cmd/dataset/vendor/github.com/ellypaws/inkbunny/api
 
 require (
 	github.com/charmbracelet/log v0.4.1

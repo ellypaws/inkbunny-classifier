@@ -4,6 +4,8 @@ WORKDIR /app
 
 # Copy go.mod and go.sum first to leverage Docker cache
 COPY go.mod go.sum ./
+# Copy vendor folder and set up module replacement
+COPY cmd/dataset/vendor ./cmd/dataset/vendor
 RUN go mod download
 
 # Copy the rest of the source code
