@@ -26,8 +26,7 @@ RUN if [ "$USE_CUDA" = "true" ]; then \
     && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Create app directory with correct permissions and copy best.pt if it exists
-RUN mkdir -p /app && chown -R root:root /app
-COPY best.pt* /app/ || true
+# Copy best.pt if it exists
+RUN if [ -f "best.pt" ]; then cp best.pt /app/; fi
 
 CMD ["python3", "main.py"] 
