@@ -211,7 +211,7 @@ func (d *classifyConfig[_]) worker(ctx context.Context) utils.WorkerPool[string,
 				return nil
 			}
 			class, confidence := prediction.Max()
-			log.Debug("Finished predicting", "path", path, "class", class, "confidence", fmt.Sprintf("%.2f", confidence*100))
+			log.Debug("Finished predicting", "path", path, "class", class, "confidence", fmt.Sprintf("%.2f%%", confidence*100))
 			return &prediction
 		}
 	})

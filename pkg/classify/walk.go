@@ -55,6 +55,6 @@ func Do(args walker.Args[Config]) (Result, error) {
 		return Result{Path: args.Path, Prediction: nil}, err
 	}
 	class, confidence := prediction.Max()
-	log.Debug("Finished predicting", "path", args.Path, "class", class, "confidence", fmt.Sprintf("%.2f", confidence*100))
+	log.Debug("Finished predicting", "path", args.Path, "class", class, "confidence", fmt.Sprintf("%.2f%%", confidence*100))
 	return Result{Path: args.Path, Prediction: &prediction}, nil
 }
