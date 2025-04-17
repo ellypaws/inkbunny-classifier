@@ -139,6 +139,17 @@ func (b *Bot) Watcher() error {
 	return nil
 }
 
+func defaultSendOption(button *telebot.ReplyMarkup) *telebot.SendOptions {
+	return &telebot.SendOptions{
+		DisableWebPagePreview: true,
+		ParseMode:             telebot.ModeMarkdownV2,
+		Protected:             true,
+		ReplyMarkup:           button,
+	}
+}
+
+var filteredMessage = parser.Patternf("⚠️ Detected filtered (%.2f%%) for ||https://inkbunny.net/s/%s|| by %q", 1.0, "<UNKNOWN>", "Username")
+
 func (b *Bot) Notify(result *Result) ([]MessageWithButton, error) {
 	class, confidence := result.Prediction.Max()
 	b.logger.Infof("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
@@ -148,7 +159,7 @@ func (b *Bot) Notify(result *Result) ([]MessageWithButton, error) {
 		return nil, nil
 	}
 
-	message := parser.Parsef("⚠️ Detected filtered (%.2f%%) for https://inkbunny.net/s/%s by %q", confidence*100, result.Submission.SubmissionID, result.Submission.Username)
+	message := filteredMessage(confidence*100, result.Submission.SubmissionID, result.Submission.Username)
 	button := utils.Single(utils.CopyButton(falseButton, result.Submission.SubmissionID), utils.CopyButton(dangerButton, result.Submission.SubmissionID))
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
@@ -161,7 +172,7 @@ func (b *Bot) Notify(result *Result) ([]MessageWithButton, error) {
 			continue
 		}
 		b.logger.Debug("Sending message to Telegram", "user_id", id)
-		reference, err := wrapper.Send(b.Bot, recipient, message, &telebot.SendOptions{ParseMode: telebot.ModeMarkdownV2, ReplyMarkup: button})
+		reference, err := wrapper.Send(b.Bot, recipient, message, defaultSendOption(button))
 		if err != nil {
 			b.logger.Error("Failed to send message", "error", err, "user_id", id)
 			return nil, fmt.Errorf("error sending to telegram: %w", err)
@@ -211,7 +222,7 @@ func previousState(states []string) state {
 	return state(-1)
 }
 
-func buildText(base string, refs *MessageRef) string {
+func buildText(refs *MessageRef) string {
 	var b strings.Builder
 	falseReports := utils.CountEqual(refs.Reports, false)
 	dangerReports := len(refs.Reports) - falseReports
@@ -224,8 +235,10 @@ func buildText(base string, refs *MessageRef) string {
 		}
 		b.WriteString(fmt.Sprintf("⚠️ %d reported this as dangerous", dangerReports))
 	}
+	_, confidence := refs.Result.Prediction.Max()
+	base := filteredMessage(confidence*100, refs.Result.Submission.SubmissionID, refs.Result.Submission.Username)
 	if b.Len() > 0 {
-		return fmt.Sprintf("%s\n\n%s", base, b.String())
+		return fmt.Sprintf("%s\n\n%s", base, parser.Parse(b.String()))
 	}
 	return base
 }
@@ -290,23 +303,22 @@ func (b *Bot) handleReport(action state) func(c telebot.Context) error {
 			button = utils.Single(falseBtn, dangerBtn)
 		}
 
-		reporterMessage := c.Message()
-		if reporterMessage == nil {
-			b.logger.Error("Message cannot be nil")
+		reporterChat := c.Chat()
+		if reporterChat == nil {
+			b.logger.Error("Reporter chat cannot be nil")
 			return nil
 		}
-		baseText := strings.SplitN(reporterMessage.Text, "\n", 2)[0]
-		text := buildText(baseText, refs)
+		text := buildText(refs)
 		for i, ref := range refs.Messages {
-			if ref.Message.Chat.ID == reporterMessage.Chat.ID {
-				edited, err := wrapper.Edit(b.Bot, ref.Message, text, button)
+			if ref.Message.Chat.ID == reporterChat.ID {
+				edited, err := wrapper.Edit(b.Bot, ref.Message, text, defaultSendOption(button))
 				if err != nil {
 					b.logger.Warn("Failed to edit message", "error", err)
 					continue
 				}
 				refs.Messages[i] = MessageWithButton{Message: edited, Button: button}
 			} else {
-				edited, err := wrapper.Edit(b.Bot, ref.Message, text, ref.Button)
+				edited, err := wrapper.Edit(b.Bot, ref.Message, text, defaultSendOption(ref.Button))
 				if err != nil {
 					b.logger.Warn("Failed to edit message", "error", err)
 					continue
