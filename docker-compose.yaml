@@ -3,8 +3,8 @@ version: '3.8'
 services:
   classifier:
     build:
-      context: .
-      dockerfile: cmd/classifier/Dockerfile
+      context: cmd/classifier
+      dockerfile: Dockerfile
     ports:
       - "7860:${CLASSIFIER_PORT:-7860}"
     environment:
