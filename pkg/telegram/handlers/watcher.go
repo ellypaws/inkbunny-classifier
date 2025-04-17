@@ -119,7 +119,7 @@ func (b *Bot) Watcher() error {
 		if res == nil {
 			continue
 		}
-		if len(res.Prediction.Minimum(0.75).Whitelist(allowed...)) == 0 {
+		if res.Prediction.Whitelist(allowed...).Sum() < 0.75 {
 			b.mu.Lock()
 			b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}
 			b.mu.Unlock()

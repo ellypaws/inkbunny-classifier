@@ -56,6 +56,15 @@ func (p Prediction) Max() (string, float64) {
 	return "", -1
 }
 
+// Sum returns the sum of all the predictions.
+func (p Prediction) Sum() float64 {
+	var f float64
+	for _, v := range p {
+		f += v
+	}
+	return f
+}
+
 // Filter returns the modified prediction map with only the predictions that have a confidence greater than or equal to min.
 func (p Prediction) Filter(filters ...func(string, float64) bool) Prediction {
 	for _, filter := range filters {
