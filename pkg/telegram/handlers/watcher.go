@@ -119,7 +119,9 @@ func (b *Bot) Watcher() error {
 		if res == nil {
 			continue
 		}
-		if res.Prediction.Clone().Whitelist(allowed...).Sum() < 0.75 {
+		if sum := res.Prediction.Clone().Whitelist(allowed...).Sum(); sum < 0.75 {
+			b.logger.Debug("Submission not notifiable", "submission_id", res.Submission.SubmissionID, "sum", sum, "allowed", allowed, "prediction", res.Prediction)
+
 			b.mu.Lock()
 			b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}
 			b.mu.Unlock()
@@ -172,14 +174,13 @@ func (b *Bot) Notify(result *Result) ([]MessageWithButton, error) {
 			b.logger.Warnf("%d has no recipient", id)
 			continue
 		}
-		b.logger.Debug("Sending message to Telegram", "user_id", id)
 		reference, err := wrapper.Send(b.Bot, recipient, message, defaultSendOption(button))
 		if err != nil {
 			b.logger.Error("Failed to send message", "error", err, "user_id", id)
 			return nil, fmt.Errorf("error sending to telegram: %w", err)
 		}
 
-		b.logger.Info("Message sent successfully", "user_id", id)
+		b.logger.Info("Notified successfully", "user_id", id, "username", recipient.Username)
 		references = append(references, MessageWithButton{Message: reference, Button: button})
 	}
 
