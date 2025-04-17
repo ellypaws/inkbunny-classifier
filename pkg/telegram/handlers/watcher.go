@@ -71,7 +71,8 @@ func (b *Bot) Watcher() error {
 			b.logger.Errorf("Error predicting submission: %v", err)
 			return nil
 		}
-		b.logger.Debugf("Classified submission https://inkbunny.net/%s: %+v", submission.SubmissionID, prediction)
+		class, confidence := prediction.Max()
+		b.logger.Debugf("Classified submission https://inkbunny.net/%s: %q (%.2f)", submission.SubmissionID, class, confidence*100)
 
 		if b.crypto.Key() != "" {
 			submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.crypto.Key())
@@ -120,7 +121,8 @@ func (b *Bot) Watcher() error {
 			continue
 		}
 		if sum := res.Prediction.Clone().Whitelist(allowed...).Sum(); sum < 0.75 {
-			b.logger.Debug("Submission not notifiable", "submission_id", res.Submission.SubmissionID, "sum", sum, "allowed", allowed, "prediction", res.Prediction)
+			class, confidence := res.Prediction.Max()
+			b.logger.Debug("Submission not notifiable", "submission_id", res.Submission.SubmissionID, "sum", sum, "allowed", allowed, "class", class, "confidence", fmt.Sprintf("%.2f", confidence*100))
 
 			b.mu.Lock()
 			b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}

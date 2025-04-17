@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
@@ -209,7 +210,8 @@ func (d *classifyConfig[_]) worker(ctx context.Context) utils.WorkerPool[string,
 				log.Error("Error classifying", "path", path, "err", err)
 				return nil
 			}
-			log.Debugf("Found %s %#v", path, prediction)
+			class, confidence := prediction.Max()
+			log.Debug("Finished predicting", "path", path, "class", class, "confidence", fmt.Sprintf("%.2f", confidence*100))
 			return &prediction
 		}
 	})

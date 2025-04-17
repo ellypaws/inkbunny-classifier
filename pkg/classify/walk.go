@@ -2,6 +2,7 @@ package classify
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/charmbracelet/log"
@@ -53,6 +54,7 @@ func Do(args walker.Args[Config]) (Result, error) {
 		log.Error("Error classifying", "path", args.Path, "err", err)
 		return Result{Path: args.Path, Prediction: nil}, err
 	}
-	log.Debugf("Found %s %#v", args.Path, prediction)
+	class, confidence := prediction.Max()
+	log.Debug("Finished predicting", "path", args.Path, "class", class, "confidence", fmt.Sprintf("%.2f", confidence*100))
 	return Result{Path: args.Path, Prediction: &prediction}, nil
 }
