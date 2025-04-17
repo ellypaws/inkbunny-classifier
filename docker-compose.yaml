@@ -51,12 +51,18 @@ services:
       - TELEGRAM_CLASSIFY=${TELEGRAM_CLASSIFY}
       - CLASS=${CLASS}
     volumes:
-      - server_data:/app/data
+      - telegram_data:/app/data
     depends_on:
       - classifier
       - server
     networks:
       - inkbunny-network
+
+volumes:
+  server_data:
+    driver: local
+  telegram_data:
+    driver: local
 
 networks:
   inkbunny-network:
