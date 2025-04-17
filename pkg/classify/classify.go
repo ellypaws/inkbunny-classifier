@@ -127,6 +127,11 @@ func Predict(ctx context.Context, name, key string, file io.Reader) (Prediction,
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(body)
+		return nil, fmt.Errorf("error in predicting %s: %s", name, string(body))
+	}
 
 	return utils.DecodeAndClose[Prediction](resp.Body)
 }
