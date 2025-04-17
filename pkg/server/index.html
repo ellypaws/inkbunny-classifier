@@ -707,6 +707,9 @@
                 isError ? console.error(event) : console.info("Done streaming", allResults);
                 evtSource.close();
                 resetModeButtons();
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                }
             }
         }
         evtSource.addEventListener('exit', closeSource(false));
