@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 
 	"github.com/charmbracelet/log"
 
@@ -27,9 +28,16 @@ func main() {
 	log.Default().SetLevel(log.DebugLevel)
 
 	done := make(chan os.Signal, 1)
-	const port = 8080
-	log.Infof("Server starting on http://localhost:%d", port)
-	go func() { log.Print(http.ListenAndServe(fmt.Sprintf(":%d", port), nil)); close(done) }()
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		log.Fatalf("Error parsing PORT: %v", err)
+	}
+	log.Infof("Server starting on http://localhost:%d", p)
+	go func() { log.Print(http.ListenAndServe(fmt.Sprintf(":%d", p), nil)); close(done) }()
 
 	wait(done)
 }
