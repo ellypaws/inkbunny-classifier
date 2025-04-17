@@ -119,7 +119,7 @@ func (b *Bot) Watcher() error {
 		}
 		if sum := res.Prediction.Clone().Whitelist(allowed...).Sum(); sum < 0.75 {
 			class, confidence := res.Prediction.Max()
-			b.logger.Debug("Submission not notifiable", "submission_id", res.Submission.SubmissionID, "sum", sum, "allowed", allowed, "class", class, "confidence", fmt.Sprintf("%.2f%%", confidence*100))
+			b.logger.Debug("Submission not notifiable", "submission_id", res.Submission.SubmissionID, "sum", fmt.Sprintf("%.2f%%", sum*100), "allowed", allowed, "class", class, "confidence", fmt.Sprintf("%.2f%%", confidence*100))
 
 			b.mu.Lock()
 			b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}

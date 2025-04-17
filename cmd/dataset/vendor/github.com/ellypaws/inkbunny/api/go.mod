@@ -7,7 +7,6 @@ require (
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.25.0
 	github.com/charmbracelet/lipgloss v0.9.1
-	github.com/ellypaws/inkbunny/api v0.0.0-20240304212245-632a129f4951
 	golang.org/x/net v0.22.0
 	golang.org/x/term v0.18.0
 )
