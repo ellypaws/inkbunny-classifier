@@ -12,8 +12,13 @@ import requests
 from utils import get_latest_weights, decrypt_aes_ctr, save_file
 
 # Automatically get the latest best.pt weights path.
-model_path = get_latest_weights()
-print("Loading model from:", model_path)
+try:
+    model_path = get_latest_weights()
+    print("Loading model from latest weights:", model_path)
+except Exception as e:
+    model_path = "yolo11x-cls.pt"
+    print(f"Failed to get latest weights: {str(e)}")
+    print("Falling back to default model:", model_path)
 
 # Load the model using the latest weights
 model = YOLO(model_path)

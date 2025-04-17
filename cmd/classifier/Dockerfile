@@ -27,7 +27,8 @@ RUN if [ "$USE_CUDA" = "true" ]; then \
     && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Copy best.pt if it exists
-RUN if [ -f "best.pt" ]; then cp best.pt /app/; fi
+# Copy models if it exists
+RUN if [ -f "best.pt" ]; then cp best.pt /app/data/; fi
+RUN if [ -f "yolo11x-cls.pt" ]; then cp yolo11x-cls.pt /app/data/; fi
 
 CMD ["python3", "main.py"] 
