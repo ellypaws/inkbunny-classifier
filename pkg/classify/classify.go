@@ -41,7 +41,7 @@ func init() {
 // Sorted returns a sorted map of the predictions in descending order.
 func (p Prediction) Sorted() iter.Seq2[string, float64] {
 	s := utils.MapToSlice(p)
-	utils.SortMapByValue(utils.MapToSlice(p))
+	utils.SortMapByValue(s)
 	return s.Backward()
 }
 
