@@ -41,7 +41,7 @@ model.to(device)
 
 def predict_image(image: Image.Image | str) -> dict[str, float]:
     """Perform prediction on the image and return a dictionary of class probabilities."""
-    results = model(source=image, imgsz=224, half=True, device="cuda:0")
+    results = model(source=image, imgsz=224, half=True, device='cuda' if torch.cuda.is_available() else 'cpu')
     probs = results[0].probs.data.cpu().numpy()
     labels = results[0].names
     # Build the result dictionary
