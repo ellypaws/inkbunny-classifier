@@ -10,8 +10,6 @@ services:
     environment:
       - USE_CUDA=${USE_CUDA:-false}
       - PORT=${CLASSIFIER_PORT:-7860}
-    volumes:
-      - ./:/app
     networks:
       - inkbunny-network
     deploy:
@@ -33,6 +31,8 @@ services:
       - PORT=${PORT:-8080}
       - PREDICT_URL=${PREDICT_URL:-http://classifier:7860/predict}
       - SKIP_LOAD=${SKIP_LOAD:-false}
+    volumes:
+      - server_data:/app/data
     depends_on:
       - classifier
     networks:
@@ -50,6 +50,8 @@ services:
       - TELEGRAM_ENCRYPT_KEY=${TELEGRAM_ENCRYPT_KEY}
       - TELEGRAM_CLASSIFY=${TELEGRAM_CLASSIFY}
       - CLASS=${CLASS}
+    volumes:
+      - server_data:/app/data
     depends_on:
       - classifier
       - server

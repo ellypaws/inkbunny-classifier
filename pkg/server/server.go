@@ -22,7 +22,7 @@ var index []byte
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	const indexPath = "../../pkg/server/index.html"
+	const indexPath = "pkg/server/index.html"
 	if utils.FileExists(indexPath) {
 		http.ServeFile(w, r, indexPath)
 	} else {

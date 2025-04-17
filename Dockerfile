@@ -21,7 +21,7 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=builder /app/bin/server /app/server
 ENV PORT=8080
-EXPOSE 8080
+WORKDIR /app/data
 CMD ["/app/server"]
 
 # Telegram stage
@@ -29,4 +29,5 @@ FROM alpine:latest AS telegram
 RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=builder /app/bin/telegram /app/telegram
+WORKDIR /app/data
 CMD ["/app/telegram"] 
