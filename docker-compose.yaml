@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  classifier:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - USE_CUDA=${USE_CUDA:-false}
+    volumes:
+      - ./:/app
+    networks:
+      - inkbunny-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    environment:
+      - PORT=${PORT:-8080}
+      - PREDICT_URL=${PREDICT_URL:-http://classifier:7860/predict}
+      - SKIP_LOAD=${SKIP_LOAD:-false}
+    depends_on:
+      - classifier
+    networks:
+      - inkbunny-network
+
+  telegram:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: telegram
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_REFRESH_RATE=${TELEGRAM_REFRESH_RATE}
+      - TELEGRAM_SID=${TELEGRAM_SID}
+      - TELEGRAM_ENCRYPT_KEY=${TELEGRAM_ENCRYPT_KEY}
+      - TELEGRAM_CLASSIFY=${TELEGRAM_CLASSIFY}
+      - CLASS=${CLASS}
+    depends_on:
+      - classifier
+      - server
+    networks:
+      - inkbunny-network
+
+networks:
+  inkbunny-network:
+    driver: bridge 
