@@ -174,6 +174,10 @@ func (b *Bot) Notify(result *Result) ([]MessageWithButton, error) {
 			b.logger.Warnf("%d has no recipient", id)
 			continue
 		}
+		if err := b.Bot.Notify(recipient, utils.RandomActivity()); err != nil {
+			b.logger.Error("Failed to notify user", "error", err, "user", recipient.ID, "username", recipient.Username)
+			return nil, fmt.Errorf("error sending notify to telegram: %w", err)
+		}
 		reference, err := wrapper.Send(b.Bot, recipient, message, defaultSendOption(button))
 		if err != nil {
 			b.logger.Error("Failed to send message", "error", err, "user_id", id)
@@ -270,7 +274,7 @@ func (b *Bot) handleReport(action state) func(c telebot.Context) error {
 		}
 
 		if err := c.Notify(utils.RandomActivity()); err != nil {
-			b.logger.Error("Failed to notify users", "error", err, "users", len(b.Subscribers))
+			b.logger.Error("Failed to notify user", "error", err, "user", user.ID, "username", user.Username)
 			return nil
 		}
 
