@@ -4,7 +4,7 @@ services:
   classifier:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: cmd/classifier/Dockerfile
     ports:
       - "7860:${CLASSIFIER_PORT:-7860}"
     environment:
