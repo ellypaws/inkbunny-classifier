@@ -38,6 +38,11 @@ func init() {
 	}
 }
 
+// Clone returns a copy of Prediction. This is a shallow clone: the new keys and values are set using ordinary assignment.
+func (p Prediction) Clone() Prediction {
+	return maps.Clone(p)
+}
+
 // Sorted returns a sorted map of the predictions in descending order.
 func (p Prediction) Sorted() iter.Seq2[string, float64] {
 	s := utils.MapToSlice(p)
