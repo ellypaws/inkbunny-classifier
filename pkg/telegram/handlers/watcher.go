@@ -110,6 +110,7 @@ func (b *Bot) Watcher() error {
 		}
 	}()
 
+	b.logger.Info("Starting watcher", "subscribers", len(b.Subscribers), "references", len(b.references))
 	allowed := []string{"cub"}
 	if c := os.Getenv("CLASS"); c != "" {
 		allowed = strings.Split(c, ",")
