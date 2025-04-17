@@ -909,6 +909,7 @@
             conditionSelect.value = ruleData.condition;
         }
         conditionSelect.addEventListener('change', saveFilterRules);
+        conditionSelect.addEventListener('change', renderFilteredResults);
         conditionCell.appendChild(conditionSelect);
         row.appendChild(conditionCell);
 
@@ -963,6 +964,7 @@
                 customInput.style.display = 'none';
             }
             saveFilterRules();
+            renderFilteredResults();
         });
         classCell.appendChild(classSelect);
         classCell.appendChild(customInput);
