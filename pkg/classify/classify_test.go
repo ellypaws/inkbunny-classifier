@@ -52,7 +52,11 @@ var warmupOnce sync.Once
 
 func warmup() {
 	proxy.Do(start)
-	warmupOnce.Do(func() { PredictURL(context.Background(), imagePath) })
+	warmupOnce.Do(func() {
+		if _, err := PredictURL(context.Background(), imagePath); err != nil {
+			panic(err)
+		}
+	})
 	DefaultCache.reset()
 }
 
