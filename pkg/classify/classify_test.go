@@ -78,7 +78,7 @@ func TestCache_PredictURL(t *testing.T) {
 }
 
 func BenchmarkPredict(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := Predict(context.Background(), "image", "", bytes.NewReader(file))
 		if err != nil {
 			b.Fatal(err)
@@ -89,7 +89,7 @@ func BenchmarkPredict(b *testing.B) {
 func BenchmarkPredictURL(b *testing.B) {
 	proxy.Do(start)
 	warmup()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := PredictURL(context.Background(), imagePath)
 		if err != nil {
 			b.Fatal(err)
