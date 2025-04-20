@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"sync"
 	"time"
@@ -100,6 +101,7 @@ func (b *Bot) Start() error {
 func (b *Bot) Stop() error {
 	b.logger.Info("Stopping Telegram bot")
 	b.Bot.Stop()
+	b.prune()
 	b.save()
 	return nil
 }
@@ -109,6 +111,17 @@ const savePath = "telegram.json"
 type Settings struct {
 	Subscribers Subscribers            `json:"subscribers,omitempty"`
 	References  map[string]*MessageRef `json:"references,omitempty"`
+}
+
+func (b *Bot) prune() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	maps.DeleteFunc(b.references, func(_ string, ref *MessageRef) bool {
+		if ref == nil {
+			return true
+		}
+		return len(ref.Messages) == 0
+	})
 }
 
 func (b *Bot) save() {
