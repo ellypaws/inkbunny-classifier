@@ -41,7 +41,7 @@ func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, link, fileName str
 
 	ext := filepath.Ext(fileName)
 	name := filepath.Base(fileName)[:len(fileName)-len(ext)]
-	out, err := os.CreateTemp(filepath.Dir(fileName), fmt.Sprintf("%s*.%s", name, ext))
+	out, err := os.CreateTemp(filepath.Dir(fileName), fmt.Sprintf("%s_*.%s", name, ext))
 	if err != nil {
 		return nil, fmt.Errorf("error creating file: %w", err)
 	}
