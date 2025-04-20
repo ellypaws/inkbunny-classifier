@@ -43,18 +43,20 @@ func DownloadEncrypt(ctx context.Context, crypto *lib.Crypto, link, fileName str
 	if err != nil {
 		return nil, fmt.Errorf("error creating file: %w", err)
 	}
-	defer out.Close()
 
 	encoder, err := crypto.Encoder(out)
 	if err != nil {
+		out.Close()
 		return nil, fmt.Errorf("error creating encoder: %w", err)
 	}
 
 	_, err = io.Copy(encoder, resp.Body)
 	if err != nil {
+		out.Close()
 		return nil, fmt.Errorf("error writing to file: %w", err)
 	}
 
+	out.Close()
 	if err := os.Rename(out.Name(), fileName); err != nil {
 		return nil, fmt.Errorf("error renaming file: %w", err)
 	}
