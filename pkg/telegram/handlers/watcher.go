@@ -80,18 +80,16 @@ func (b *Bot) Watcher() error {
 	predictionWorker.Work()
 	defer predictionWorker.Close()
 
-	var mu sync.RWMutex
 	var batch sync.WaitGroup
-
 	// Submission worker
 	worker := utils.NewWorkerPool(30, func(submission api.Submission) *Result {
 		defer batch.Done()
-		mu.RLock()
+		b.mu.RLock()
 		if _, ok := b.references[submission.SubmissionID]; ok {
-			mu.RUnlock()
+			b.mu.RUnlock()
 			return nil
 		}
-		mu.RUnlock()
+		b.mu.RUnlock()
 
 		b.logger.Infof("New submission found https://inkbunny.net/s/%s with %d file%s", submission.SubmissionID, len(submission.Files), utils.Plural(len(submission.Files)))
 
@@ -117,9 +115,9 @@ func (b *Bot) Watcher() error {
 			}
 		}
 
-		mu.Lock()
+		b.mu.Lock()
 		b.references[submission.SubmissionID] = &MessageRef{Result: &Result{Submission: &submission}}
-		mu.Unlock()
+		b.mu.Unlock()
 		if len(predictions) == 0 {
 			b.logger.Warn("No prediction found", "submission", submission.SubmissionID, "error", err)
 			return nil

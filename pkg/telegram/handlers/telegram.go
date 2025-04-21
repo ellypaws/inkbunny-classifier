@@ -29,7 +29,7 @@ type Bot struct {
 	references map[string]*MessageRef
 
 	context context.Context
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	logger  *log.Logger
 }
 
