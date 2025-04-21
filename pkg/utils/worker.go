@@ -173,3 +173,17 @@ func Iter[R any](results <-chan R) iter.Seq[R] {
 		}
 	}
 }
+
+// Unpack unpacks the results from an iterator of ~[]R and returns them as iter.Seq[R].
+// This is equivalent to using slices.Values but for iter.Seq.
+func Unpack[S ~[]R, R any](results iter.Seq[S]) iter.Seq[R] {
+	return func(yield func(R) bool) {
+		for slice := range results {
+			for _, v := range slice {
+				if !yield(v) {
+					return
+				}
+			}
+		}
+	}
+}

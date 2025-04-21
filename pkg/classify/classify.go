@@ -70,7 +70,15 @@ func (p Prediction) Sum() float64 {
 	return f
 }
 
-// Filter returns the modified prediction map with only the predictions that have a confidence greater than or equal to min.
+// Average returns the average of all the predictions.
+func (p Prediction) Average() float64 {
+	if len(p) == 0 {
+		return 0
+	}
+	return p.Sum() / float64(len(p))
+}
+
+// Filter returns the modified prediction map with only the predictions where all filters return false.
 func (p Prediction) Filter(filters ...func(string, float64) bool) Prediction {
 	for _, filter := range filters {
 		if filter == nil {

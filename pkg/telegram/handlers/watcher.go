@@ -20,9 +20,55 @@ import (
 )
 
 type Result struct {
-	Path       string                   `json:"path"`
-	Submission api.SubmissionSearchList `json:"submission,omitempty"`
-	Prediction classify.Prediction      `json:"prediction,omitempty"`
+	Submission  *api.Submission `json:"submission,omitempty"`
+	Predictions Predictions     `json:"predictions,omitempty"`
+}
+
+// Aggregate returns the prediction with the highest summed confidence after using [classify.Prediction.Filter], and their average.
+// The returned Prediction is not guaranteed to meet the minimum confidence criteria.
+func (p Predictions) Aggregate() (highest *Prediction, confidence float64, average float64) {
+	if len(p) == 0 {
+		return
+	}
+	allowed := []string{"cub"}
+	if c := os.Getenv("CLASS"); c != "" {
+		allowed = strings.Split(c, ",")
+	}
+	var sums float64
+
+	for i, prediction := range p {
+		sum := prediction.Prediction.Clone().Whitelist(allowed...).Sum()
+		if i == 0 || sum > confidence {
+			highest, confidence = prediction, sum
+		}
+		sums += sum
+	}
+	return highest, confidence, sums / float64(len(p))
+}
+
+// Max returns the class with the highest confidence in all Predictions and its index.
+func (p Predictions) Max() (int, string, float64) {
+	var (
+		index      int
+		class      string
+		confidence float64
+	)
+	for i, pred := range p {
+		if pred == nil || pred.Prediction == nil {
+			continue
+		}
+		if _class, _confidence := pred.Prediction.Max(); _confidence > confidence {
+			index, class, confidence = i, _class, _confidence
+		}
+	}
+	return index, class, confidence
+}
+
+type Predictions []*Prediction
+
+type Prediction struct {
+	Path       string              `json:"path"`
+	Prediction classify.Prediction `json:"prediction,omitempty"`
 }
 
 func (b *Bot) Watcher() error {
@@ -30,11 +76,16 @@ func (b *Bot) Watcher() error {
 		return errors.New("classification not enabled")
 	}
 
+	predictionWorker := utils.NewWorkerPool(5, b.predict)
+	predictionWorker.Work()
+	defer predictionWorker.Close()
+
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(30, func(submission api.SubmissionSearchList) *Result {
-		if !utils.IsImage(submission.FileURLFull) {
-			return nil
-		}
+	var batch sync.WaitGroup
+
+	// Submission worker
+	worker := utils.NewWorkerPool(30, func(submission api.Submission) *Result {
+		defer batch.Done()
 		mu.RLock()
 		if _, ok := b.references[submission.SubmissionID]; ok {
 			mu.RUnlock()
@@ -42,45 +93,44 @@ func (b *Bot) Watcher() error {
 		}
 		mu.RUnlock()
 
-		b.logger.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
+		b.logger.Infof("New submission found https://inkbunny.net/s/%s with %d file%s", submission.SubmissionID, len(submission.Files), utils.Plural(len(submission.Files)))
 
-		folder := filepath.Join("inkbunny", submission.Username)
-		err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
-		if err != nil {
-			b.logger.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
-		}
-
-		fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
-
-		if !utils.FileExists(fileName) {
-			_, err = utils.DownloadEncrypt(b.context, b.crypto, submission.FileURLFull, fileName)
-			if err != nil {
-				b.logger.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
-				return nil
+		var (
+			predictions = make([]*Prediction, 0, len(submission.Files))
+			err         error
+		)
+		for _, file := range submission.Files {
+			if err = b.context.Err(); err != nil {
+				break
 			}
-			b.logger.Debugf("Downloaded submission: %v", submission.FileURLFull)
+			if !utils.IsImage(file.FileURLFull) {
+				err = fmt.Errorf("file %s is not an image", file.FileURLFull)
+				continue
+			}
+			prediction := <-predictionWorker.Promise(predictionRequest{
+				Username:     submission.Username,
+				FileURLFull:  file.FileURLFull,
+				SubmissionID: file.SubmissionID,
+			})
+			if prediction != nil {
+				predictions = append(predictions, prediction)
+			}
 		}
 
-		file, err := os.Open(fileName)
-		if err != nil {
-			b.logger.Errorf("Error opening file %s: %v", submission.FileURLFull, err)
-		}
-		prediction, err := classify.DefaultCache.Predict(b.context, submission.FileURLFull, b.crypto.Key(), file)
-		file.Close()
-		if err != nil {
-			b.logger.Errorf("Error predicting submission: %v", err)
+		mu.Lock()
+		b.references[submission.SubmissionID] = &MessageRef{Result: &Result{Submission: &submission}}
+		mu.Unlock()
+		if len(predictions) == 0 {
+			b.logger.Warn("No prediction found", "submission", submission.SubmissionID, "error", err)
 			return nil
 		}
-		if b.crypto.Key() != "" {
-			submission.FileURLFull = fmt.Sprintf("%s?key=%s", submission.FileURLFull, b.crypto.Key())
-		}
 		return &Result{
-			Path:       submission.FileURLFull,
-			Submission: submission,
-			Prediction: prediction,
+			Submission:  &submission,
+			Predictions: predictions,
 		}
 	})
 
+	// Submission watcher, adds new submissions to worker
 	go func() {
 		defer worker.Close()
 		for b.context.Err() == nil {
@@ -98,7 +148,18 @@ func (b *Bot) Watcher() error {
 			if err != nil {
 				b.logger.Errorf("Error searching submissions: %v", err)
 			}
-			worker.Add(response.Submissions...)
+			var submissionIDs []string
+			for _, submission := range response.Submissions {
+				submissionIDs = append(submissionIDs, submission.SubmissionID)
+			}
+			details, err := api.Credentials{Sid: b.sid}.SubmissionDetails(api.SubmissionDetailsRequest{SID: b.sid, SubmissionIDs: strings.Join(submissionIDs, ",")})
+			if err != nil {
+				b.logger.Errorf("Error getting submission details: %v", err)
+				continue
+			}
+			batch.Add(len(details.Submissions))
+			worker.Add(details.Submissions...)
+			batch.Wait()
 			select {
 			case <-b.context.Done():
 				return
@@ -113,32 +174,96 @@ func (b *Bot) Watcher() error {
 	if c := os.Getenv("CLASS"); c != "" {
 		allowed = strings.Split(c, ",")
 	}
+
+	// Results collection
 	for res := range worker.Work() {
 		if res == nil {
 			continue
 		}
-		if sum := res.Prediction.Clone().Whitelist(allowed...).Sum(); sum < 0.75 {
-			class, confidence := res.Prediction.Max()
-			b.logger.Debug("Submission not notifiable", "submission_id", res.Submission.SubmissionID, "sum", fmt.Sprintf("%.2f%%", sum*100), "allowed", allowed, "class", class, "confidence", fmt.Sprintf("%.2f%%", confidence*100))
-
-			b.mu.Lock()
-			b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}
-			b.mu.Unlock()
+		if len(res.Predictions) == 0 {
+			b.logger.Warn("Submission returned no predictions", "submission_id", res.Submission.SubmissionID)
 			continue
 		}
 
-		b.mu.Lock()
-		messages, err := b.Notify(res)
-		b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages, Result: res}
-		b.mu.Unlock()
+		prediction, aggregate, average := res.Predictions.Aggregate()
+		if aggregate >= 0.75 {
+			if prediction == nil {
+				b.logger.Warn("Prediction returned nil", "submission_id", res.Submission.SubmissionID)
+				continue
+			}
+			b.mu.Lock()
+			messages, err := b.Notify(res.Submission, prediction)
+			b.references[res.Submission.SubmissionID] = &MessageRef{Messages: messages, Result: res}
+			b.mu.Unlock()
 
-		b.save()
-		if err != nil {
-			b.logger.Errorf("Error notifying users: %v", err)
+			b.save()
+			if err != nil {
+				b.logger.Errorf("Error notifying users: %v", err)
+			}
+			continue
 		}
+
+		index, class, confidence := res.Predictions.Max()
+		b.logger.Debug("Submission not notifiable",
+			"submission_id", res.Submission.SubmissionID,
+			allowed, floatString(average),
+			"file", fmt.Sprintf("%d/%d", index+1, len(res.Predictions)),
+			"class", class,
+			"confidence", floatString(confidence),
+		)
+
+		b.mu.Lock()
+		b.references[res.Submission.SubmissionID] = &MessageRef{Result: res}
+		b.mu.Unlock()
+		continue
 	}
 
 	return nil
+}
+
+type predictionRequest struct {
+	Username     string
+	FileURLFull  string
+	SubmissionID string
+}
+
+// predict downloads the file and predicts the class
+func (b *Bot) predict(req predictionRequest) *Prediction {
+	folder := filepath.Join("inkbunny", req.Username)
+	err := os.MkdirAll(folder, 0755)
+	if err != nil {
+		b.logger.Errorf("Error creating folder %s for https://inkbunny.net/s/%s: %v", folder, req.SubmissionID, err)
+		return nil
+	}
+
+	fileName := filepath.Join(folder, filepath.Base(req.FileURLFull))
+	if !utils.FileExists(fileName) {
+		_, err = utils.DownloadEncrypt(b.context, b.crypto, req.FileURLFull, fileName)
+		if err != nil {
+			b.logger.Errorf("Error downloading file %s: %v", req.FileURLFull, err)
+			return nil
+		}
+		b.logger.Debugf("Downloaded submission: %v", req.FileURLFull)
+	}
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		b.logger.Errorf("Error opening file %s: %v", req.FileURLFull, err)
+		return nil
+	}
+	prediction, err := classify.DefaultCache.Predict(b.context, req.FileURLFull, b.crypto.Key(), file)
+	file.Close()
+	if err != nil {
+		b.logger.Errorf("Error predicting submission: %v", err)
+		return nil
+	}
+	if b.crypto.Key() != "" {
+		req.FileURLFull = fmt.Sprintf("%s?key=%s", req.FileURLFull, b.crypto.Key())
+	}
+	return &Prediction{
+		Path:       req.FileURLFull,
+		Prediction: prediction,
+	}
 }
 
 func defaultSendOption(button *telebot.ReplyMarkup) *telebot.SendOptions {
@@ -150,19 +275,26 @@ func defaultSendOption(button *telebot.ReplyMarkup) *telebot.SendOptions {
 	}
 }
 
+func floatString(f float64) string {
+	return fmt.Sprintf("%.2f%%", f*100)
+}
+
 var filteredMessage = parser.Patternf("⚠️ Detected filtered (%.2f%%) for ||https://inkbunny.net/s/%s|| by %q", 1.0, "<UNKNOWN>", "Username")
 
-func (b *Bot) Notify(result *Result) ([]MessageWithButton, error) {
-	class, confidence := result.Prediction.Max()
-	b.logger.Infof("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, result.Submission.SubmissionID, result.Submission.Username)
+func (b *Bot) Notify(submission *api.Submission, prediction *Prediction) ([]MessageWithButton, error) {
+	class, confidence := prediction.Prediction.Max()
+	b.logger.Infof("⚠️ Detected %q (%.2f%%) for https://inkbunny.net/s/%s by %q", class, confidence*100, submission.SubmissionID, submission.Username)
 
 	if len(b.Subscribers) == 0 {
 		b.logger.Warn("Cannot send message - no subscribers")
 		return nil, nil
 	}
-
-	message := filteredMessage(confidence*100, result.Submission.SubmissionID, result.Submission.Username)
-	button := utils.Single(utils.CopyButton(falseButton, result.Submission.SubmissionID), utils.CopyButton(dangerButton, result.Submission.SubmissionID))
+	allowed := []string{"cub"}
+	if c := os.Getenv("CLASS"); c != "" {
+		allowed = strings.Split(c, ",")
+	}
+	message := filteredMessage(prediction.Prediction.Clone().Whitelist(allowed...).Sum()*100, submission.SubmissionID, submission.Username)
+	button := utils.Single(utils.CopyButton(falseButton, submission.SubmissionID), utils.CopyButton(dangerButton, submission.SubmissionID))
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
 		if b.context.Err() != nil {
@@ -240,7 +372,8 @@ func buildText(refs *MessageRef) string {
 		}
 		b.WriteString(fmt.Sprintf("⚠️ %d reported this as dangerous", dangerReports))
 	}
-	_, confidence := refs.Result.Prediction.Max()
+
+	_, confidence, _ := refs.Result.Predictions.Aggregate()
 	base := filteredMessage(confidence*100, refs.Result.Submission.SubmissionID, refs.Result.Submission.Username)
 	if b.Len() > 0 {
 		return fmt.Sprintf("%s\n\n%s", base, parser.Parse(b.String()))

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,11 +45,13 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	readSubs := make(map[string]*Result)
+	readSubs := make(map[string][]*Result)
 	distanceWorker := distanceConfig.worker(r.Context())
 	classifyWorker := classifyConfig.worker(r.Context())
 	var mu sync.RWMutex
-	worker := utils.NewWorkerPool(30, func(submission api.SubmissionSearchList) *Result {
+	var batch sync.WaitGroup
+	worker := utils.NewWorkerPool(30, func(submission api.Submission) []*Result {
+		defer batch.Done()
 		if !utils.IsImage(submission.FileURLFull) {
 			return nil
 		}
@@ -59,7 +62,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 		}
 		mu.RUnlock()
 
-		log.Infof("New submission found https://inkbunny.net/s/%s", submission.SubmissionID)
+		log.Infof("New submission found https://inkbunny.net/s/%s with %d file%s", submission.SubmissionID, len(submission.Files), utils.Plural(len(submission.Files)))
 
 		folder := filepath.Join("inkbunny", submission.Username)
 		err := os.MkdirAll(filepath.Join("inkbunny", submission.Username), 0755)
@@ -67,35 +70,54 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("Error creating folder %s: %v", submission.SubmissionID, err)
 		}
 
-		fileName := filepath.Join(folder, filepath.Base(submission.FileURLFull))
-		_, err = utils.DownloadEncrypt(r.Context(), classifyConfig.crypto, submission.FileURLFull, fileName)
-		if err != nil {
-			log.Errorf("Error downloading submission %s: %v", submission.SubmissionID, err)
-			return nil
-		}
-		log.Debugf("Downloaded submission: %v", submission.FileURLFull)
+		results := make([]*Result, 0, len(submission.Files))
+		for i, file := range submission.Files {
+			if err = r.Context().Err(); err != nil {
+				break
+			}
+			if !utils.IsImage(file.FileURLFull) {
+				err = fmt.Errorf("file %s is not an image", file.FileURLFull)
+				continue
+			}
 
-		result, err := Collect(r.Context(), fileName, distanceWorker.Promise(fileName), classifyWorker.Promise(fileName))
-		if err != nil {
-			log.Errorf("Error processing submission %s: %v", submission.SubmissionID, err)
-			return nil
-		}
-		if result == nil {
-			return nil
-		}
-		if result.Prediction == nil && result.Color == nil {
-			return nil
+			fileName := filepath.Join(folder, filepath.Base(file.FileURLFull))
+			_, err = utils.DownloadEncrypt(r.Context(), classifyConfig.crypto, file.FileURLFull, fileName)
+			if err != nil {
+				log.Errorf("Error downloading file %d %s: %v", i+1, file.FileURLFull, err)
+				continue
+			}
+			log.Debugf("Downloaded submission: %v", file.FileURLFull)
+
+			result, err := Collect(r.Context(), fileName, distanceWorker.Promise(fileName), classifyWorker.Promise(fileName))
+			if err != nil {
+				log.Errorf("Error processing submission %s: %v", file.SubmissionID, err)
+				continue
+			}
+			if result == nil {
+				continue
+			}
+			if result.Prediction == nil && result.Color == nil {
+				continue
+			}
+
+			if encryptKey != "" {
+				result.Path = fmt.Sprintf("%s?key=%s", file.FileURLFull, encryptKey)
+			}
+			result.URL = fmt.Sprintf("https://inkbunny.net/s/%s-p%d", file.SubmissionID, i+1)
+			results = append(results, result)
 		}
 
-		if encryptKey != "" {
-			result.Path = fmt.Sprintf("%s?key=%s", submission.FileURLFull, encryptKey)
+		mu.Lock()
+		readSubs[submission.SubmissionID] = results
+		mu.Unlock()
+		if len(results) == 0 {
+			log.Warn("No prediction found", "submission", submission.SubmissionID, "error", err)
+			return nil
 		}
-		result.URL = fmt.Sprintf("https://inkbunny.net/s/%s", submission.SubmissionID)
-
-		go func() { mu.Lock(); readSubs[submission.SubmissionID] = result; mu.Unlock() }()
-		return result
+		return results
 	})
 
+	// Submission watcher, adds new submissions to worker
 	go func() {
 		timeout := 30 * time.Second
 		if t, err := strconv.ParseInt(refreshRate, 10, 64); err != nil && t > 0 {
@@ -117,7 +139,18 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Errorf("Error searching submissions: %v", err)
 			}
-			worker.Add(response.Submissions...)
+			var submissionIDs []string
+			for _, submission := range response.Submissions {
+				submissionIDs = append(submissionIDs, submission.SubmissionID)
+			}
+			details, err := api.Credentials{Sid: sid}.SubmissionDetails(api.SubmissionDetailsRequest{SID: sid, SubmissionIDs: strings.Join(submissionIDs, ",")})
+			if err != nil {
+				log.Errorf("Error getting submission details: %v", err)
+				continue
+			}
+			batch.Add(len(details.Submissions))
+			worker.Add(details.Submissions...)
+			batch.Wait()
 			select {
 			case <-r.Context().Done():
 				return
@@ -131,7 +164,7 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	classifyWorker.Work()
 	distanceWorker.Work()
 	log.Info("Starting watcher", "distance", distanceConfig.enabled, "classify", classifyConfig.enabled)
-	Respond(w, r, worker.Iter())
+	Respond(w, r, utils.Unpack(worker.Iter()))
 	classifyWorker.Close()
 	distanceWorker.Close()
 	log.Info("Finished watching for new submissions")
