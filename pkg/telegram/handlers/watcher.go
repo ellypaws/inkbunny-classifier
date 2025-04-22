@@ -226,11 +226,12 @@ func (b *Bot) predict(req predictionRequest) *Prediction {
 
 	fileName := filepath.Join(folder, filepath.Base(req.FileURLFull))
 	if !utils.FileExists(fileName) {
-		_, err = utils.DownloadEncrypt(b.context, b.crypto, req.FileURLFull, fileName)
+		file, err := utils.DownloadEncrypt(b.context, b.crypto, req.FileURLFull, fileName)
 		if err != nil {
 			b.logger.Errorf("Error downloading file %s: %v", req.FileURLFull, err)
 			return nil
 		}
+		file.Close()
 		b.logger.Debugf("Downloaded submission: %v", req.FileURLFull)
 	}
 
