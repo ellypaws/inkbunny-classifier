@@ -8,7 +8,6 @@ import (
 	"io"
 	"iter"
 	"net/http"
-	"os"
 	"runtime"
 	"strconv"
 
@@ -92,18 +91,18 @@ type distanceConfig[R io.ReadSeekCloser] struct {
 	method    func(string) (R, error)
 }
 
-func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
+func newDistanceConfig(r *http.Request, crypto *lib.Crypto) (distanceConfig[*lib.CryptoFile], error) {
 	colorHex := r.URL.Query().Get("color")
 	thresholdStr := r.URL.Query().Get("threshold")
 	metricStr := r.URL.Query().Get("metric")
 	shouldGetDistance := r.URL.Query().Get("distance") == "true"
 
 	if !shouldGetDistance {
-		return distanceConfig[*os.File]{enabled: false}, nil
+		return distanceConfig[*lib.CryptoFile]{enabled: false}, nil
 	}
 
 	if colorHex == "" {
-		return distanceConfig[*os.File]{enabled: false}, errors.New("folder and color parameters are required")
+		return distanceConfig[*lib.CryptoFile]{enabled: false}, errors.New("folder and color parameters are required")
 	}
 
 	threshold := 0.1
@@ -116,7 +115,7 @@ func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
 	// parse the hex color using go-colorful (expects "#RRGGBB")
 	target, err := colorful.Hex(colorHex)
 	if err != nil {
-		return distanceConfig[*os.File]{enabled: false}, errors.New("invalid color format; use hex (e.g. #ff0000)")
+		return distanceConfig[*lib.CryptoFile]{enabled: false}, errors.New("invalid color format; use hex (e.g. #ff0000)")
 	}
 
 	metric := colorful.Color.DistanceLab
@@ -137,12 +136,12 @@ func newDistanceConfig(r *http.Request) (distanceConfig[*os.File], error) {
 		metric = colorful.Color.DistanceLab
 	}
 
-	return distanceConfig[*os.File]{
+	return distanceConfig[*lib.CryptoFile]{
 		enabled:   shouldGetDistance,
 		target:    target,
 		metric:    metric,
 		threshold: threshold,
-		method:    os.Open,
+		method:    crypto.Open,
 	}, nil
 }
 

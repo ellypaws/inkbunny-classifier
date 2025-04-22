@@ -24,15 +24,15 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 	shouldClassify := r.URL.Query().Get("classify") == "true"
 	refreshRate := r.URL.Query().Get("refresh_rate_seconds")
 
-	distanceConfig, err := newDistanceConfig(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	crypto, err := lib.NewCrypto(encryptKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	distanceConfig, err := newDistanceConfig(r, crypto) // we need to open the decrypted file for the distance calculation to work
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	classifyConfig := classifyConfig[*os.File]{

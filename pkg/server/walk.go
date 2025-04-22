@@ -40,7 +40,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	distanceConfig, err := newDistanceConfig(r)
+	distanceConfig, err := newDistanceConfig(r, nil) // because we expect local files to be unencrypted, hand in a nil crypto
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -73,7 +73,7 @@ func WalkHandler(w http.ResponseWriter, r *http.Request) {
 
 // walkDir traverses the folder rooted at "root" and, for each image file,
 // spawns a goroutine (limited by a semaphore of size runtime.NumCPU)
-func walkDir(ctx context.Context, root string, max int, results chan<- *Result, distanceConfig distanceConfig[*os.File], classifyConfig classifyConfig[*lib.CryptoFile]) {
+func walkDir(ctx context.Context, root string, max int, results chan<- *Result, distanceConfig distanceConfig[*lib.CryptoFile], classifyConfig classifyConfig[*lib.CryptoFile]) {
 	defer close(results)
 	if ctx == nil {
 		ctx = context.Background()
