@@ -81,11 +81,12 @@ func Watcher(w http.ResponseWriter, r *http.Request) {
 			}
 
 			fileName := filepath.Join(folder, filepath.Base(file.FileURLFull))
-			_, err = utils.DownloadEncrypt(r.Context(), classifyConfig.crypto, file.FileURLFull, fileName)
+			f, err := utils.DownloadEncrypt(r.Context(), classifyConfig.crypto, file.FileURLFull, fileName)
 			if err != nil {
 				log.Errorf("Error downloading file %d %s: %v", i+1, file.FileURLFull, err)
 				continue
 			}
+			f.Close()
 			log.Debugf("Downloaded submission: %v", file.FileURLFull)
 
 			result, err := Collect(r.Context(), fileName, distanceWorker.Promise(fileName), classifyWorker.Promise(fileName))
