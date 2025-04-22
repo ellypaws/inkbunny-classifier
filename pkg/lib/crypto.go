@@ -150,17 +150,21 @@ func (c *Crypto) Open(path string) (*CryptoFile, error) {
 		return nil, fmt.Errorf("error making decoder: %w", err)
 	}
 
-	return &CryptoFile{decoder, file}, nil
+	return &CryptoFile{decoder, file, c != nil && c.key != ""}, nil
 }
 
 type CryptoFile struct {
-	decoder io.Reader
-	file    *os.File
+	decoder   io.Reader
+	file      *os.File
+	encrypted bool
 }
 
 func (c *CryptoFile) Read(p []byte) (n int, err error) { return c.decoder.Read(p) }
 
 func (c *CryptoFile) Seek(offset int64, whence int) (int64, error) {
+	if !c.encrypted {
+		return c.file.Seek(offset, whence)
+	}
 	switch whence {
 	case io.SeekStart:
 		offset += aes.BlockSize
@@ -199,6 +203,6 @@ func (c *Crypto) OpenWithMethod(method func(io.Reader) (io.Reader, error)) func(
 			return nil, fmt.Errorf("error making decoder: %w", err)
 		}
 
-		return &CryptoFile{decoder, file}, nil
+		return &CryptoFile{decoder, file, c != nil && c.key != ""}, nil
 	}
 }
