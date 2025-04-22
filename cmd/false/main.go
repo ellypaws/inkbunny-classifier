@@ -123,7 +123,6 @@ func main() {
 
 	b.logger.Info("Starting scraping")
 	// Results collection
-NextResult:
 	for res := range worker.Work() {
 		if res == nil {
 			continue
@@ -132,6 +131,7 @@ NextResult:
 			b.logger.Warn("Submission returned no predictions", "submission_id", res.Submission.SubmissionID)
 			continue
 		}
+		var savedOnce bool
 		for _, prediction := range res.Predictions {
 			if prediction == nil {
 				b.logger.Warn("Prediction is nil", "submission_id", res.Submission.SubmissionID)
@@ -144,8 +144,11 @@ NextResult:
 				} else {
 					b.logger.Info("Saved prediction", "submission_id", res.Submission.SubmissionID)
 				}
-				continue NextResult
+				savedOnce = true
 			}
+		}
+		if savedOnce {
+			continue
 		}
 
 		_, _, average := res.Predictions.Aggregate(b.classes...)
