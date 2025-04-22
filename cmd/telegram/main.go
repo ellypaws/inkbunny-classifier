@@ -17,6 +17,7 @@ const (
 	EnvTelegramSID           = "TELEGRAM_SID"
 	EnvTelegramEncryptionKey = "TELEGRAM_ENCRYPT_KEY"
 	EnvTelegramClassify      = "TELEGRAM_CLASSIFY"
+	EnvTelegramClasses       = "TELEGRAM_CLASSES"
 )
 
 func main() {
@@ -30,6 +31,7 @@ func main() {
 		SID:           os.Getenv(EnvTelegramSID),
 		Classify:      os.Getenv(EnvTelegramClassify),
 		EncryptionKey: os.Getenv(EnvTelegramEncryptionKey),
+		Classes:       os.Getenv(EnvTelegramClasses),
 		Context:       ctx,
 	})
 	if err != nil {

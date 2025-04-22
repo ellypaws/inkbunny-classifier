@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -50,6 +51,7 @@ type Config struct {
 	SID           string
 	Classify      string
 	EncryptionKey string
+	Classes       string
 	Context       context.Context
 }
 
@@ -68,7 +70,10 @@ func New(config Config) (*Bot, error) {
 			refreshRate = i
 		}
 	}
-
+	classes := []string{"cub"}
+	if config.Classes != "" {
+		classes = strings.Split(config.Classes, ",")
+	}
 	tgBot, err := handlers.New(
 		config.Token,
 		config.SID,
@@ -77,6 +82,7 @@ func New(config Config) (*Bot, error) {
 		config.EncryptionKey,
 		config.Output,
 		config.Context,
+		classes,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Telegram bot: %w", err)

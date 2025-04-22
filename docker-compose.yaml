@@ -49,7 +49,7 @@ services:
       - TELEGRAM_SID=${TELEGRAM_SID}
       - TELEGRAM_ENCRYPT_KEY=${TELEGRAM_ENCRYPT_KEY}
       - TELEGRAM_CLASSIFY=${TELEGRAM_CLASSIFY}
-      - CLASS=${CLASS}
+      - TELEGRAM_CLASSES=${TELEGRAM_CLASSES}
     volumes:
       - telegram_data:/app/data
     depends_on:

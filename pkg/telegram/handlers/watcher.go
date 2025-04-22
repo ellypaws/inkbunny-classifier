@@ -26,16 +26,11 @@ type Result struct {
 
 // Aggregate returns the prediction with the highest summed confidence after using [classify.Prediction.Filter], and their average.
 // The returned Prediction is not guaranteed to meet the minimum confidence criteria.
-func (p Predictions) Aggregate() (highest *Prediction, confidence float64, average float64) {
+func (p Predictions) Aggregate(allowed ...string) (highest *Prediction, confidence float64, average float64) {
 	if len(p) == 0 {
 		return
 	}
-	allowed := []string{"cub"}
-	if c := os.Getenv("CLASS"); c != "" {
-		allowed = strings.Split(c, ",")
-	}
 	var sums float64
-
 	for i, prediction := range p {
 		sum := prediction.Prediction.Clone().Whitelist(allowed...).Sum()
 		if i == 0 || sum > confidence {
@@ -168,11 +163,6 @@ func (b *Bot) Watcher() error {
 	}()
 
 	b.logger.Info("Starting watcher", "subscribers", len(b.Subscribers), "references", len(b.references))
-	allowed := []string{"cub"}
-	if c := os.Getenv("CLASS"); c != "" {
-		allowed = strings.Split(c, ",")
-	}
-
 	// Results collection
 	for res := range worker.Work() {
 		if res == nil {
@@ -183,7 +173,7 @@ func (b *Bot) Watcher() error {
 			continue
 		}
 
-		prediction, aggregate, average := res.Predictions.Aggregate()
+		prediction, aggregate, average := res.Predictions.Aggregate(b.classes...)
 		if aggregate >= 0.75 {
 			if prediction == nil {
 				b.logger.Warn("Prediction returned nil", "submission_id", res.Submission.SubmissionID)
@@ -204,7 +194,7 @@ func (b *Bot) Watcher() error {
 		index, class, confidence := res.Predictions.Max()
 		b.logger.Debug("Submission not notifiable",
 			"submission_id", res.Submission.SubmissionID,
-			allowed, floatString(average),
+			b.classes, floatString(average),
 			"file", fmt.Sprintf("%d/%d", index+1, len(res.Predictions)),
 			"class", class,
 			"confidence", floatString(confidence),
@@ -287,11 +277,7 @@ func (b *Bot) Notify(submission *api.Submission, prediction *Prediction) ([]Mess
 		b.logger.Warn("Cannot send message - no subscribers")
 		return nil, nil
 	}
-	allowed := []string{"cub"}
-	if c := os.Getenv("CLASS"); c != "" {
-		allowed = strings.Split(c, ",")
-	}
-	message := filteredMessage(prediction.Prediction.Clone().Whitelist(allowed...).Sum()*100, submission.SubmissionID, submission.Username)
+	message := filteredMessage(prediction.Prediction.Clone().Whitelist(b.classes...).Sum()*100, submission.SubmissionID, submission.Username)
 	button := utils.Single(utils.CopyButton(falseButton, submission.SubmissionID), utils.CopyButton(dangerButton, submission.SubmissionID))
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
@@ -357,24 +343,24 @@ func previousState(states []string) state {
 	return state(-1)
 }
 
-func buildText(refs *MessageRef) string {
-	var b strings.Builder
+func (b *Bot) buildText(refs *MessageRef) string {
+	var builder strings.Builder
 	falseReports := utils.CountEqual(refs.Reports, false)
 	dangerReports := len(refs.Reports) - falseReports
 	if falseReports > 0 {
-		b.WriteString(fmt.Sprintf("✅ %d reported this as a false positive", falseReports))
+		builder.WriteString(fmt.Sprintf("✅ %d reported this as a false positive", falseReports))
 	}
 	if dangerReports > 0 {
-		if b.Len() > 0 {
-			b.WriteByte('\n')
+		if builder.Len() > 0 {
+			builder.WriteByte('\n')
 		}
-		b.WriteString(fmt.Sprintf("⚠️ %d reported this as dangerous", dangerReports))
+		builder.WriteString(fmt.Sprintf("⚠️ %d reported this as dangerous", dangerReports))
 	}
 
-	_, confidence, _ := refs.Result.Predictions.Aggregate()
+	_, confidence, _ := refs.Result.Predictions.Aggregate(b.classes...)
 	base := filteredMessage(confidence*100, refs.Result.Submission.SubmissionID, refs.Result.Submission.Username)
-	if b.Len() > 0 {
-		return fmt.Sprintf("%s\n\n%s", base, parser.Parse(b.String()))
+	if builder.Len() > 0 {
+		return fmt.Sprintf("%s\n\n%s", base, parser.Parse(builder.String()))
 	}
 	return base
 }
@@ -444,7 +430,7 @@ func (b *Bot) handleReport(action state) func(c telebot.Context) error {
 			b.logger.Error("Reporter chat cannot be nil")
 			return nil
 		}
-		text := buildText(refs)
+		text := b.buildText(refs)
 		for i, ref := range refs.Messages {
 			if ref.Message.Chat.ID == reporterChat.ID {
 				edited, err := wrapper.Edit(b.Bot, ref.Message, text, defaultSendOption(button))
