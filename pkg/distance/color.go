@@ -15,18 +15,13 @@ import (
 	"github.com/lucasb-eyer/go-colorful"
 )
 
-type Distance struct {
-	Found    bool    `json:"found,omitempty"`
-	Distance float64 `json:"distance,omitempty"`
-}
-
 // PixelDistance inspects the image at reader and returns the distance according to distanceFunc.
-// It returns the lowest distance found, or -1 if no pixel is within maxDistance.
-func PixelDistance(ctx context.Context, name string, file io.Reader, target colorful.Color, maxDistance float64, distanceFunc func(colorful.Color, colorful.Color) float64) Distance {
+// It returns the lowest distance found.
+func PixelDistance(ctx context.Context, name string, file io.Reader, target colorful.Color, distanceFunc func(colorful.Color, colorful.Color) float64) float64 {
 	img, _, err := image.Decode(file)
 	if err != nil {
 		log.Errorf("error decoding %s: %v", name, err)
-		return Distance{Found: false, Distance: -1}
+		return -1
 	}
 
 	lowest := -1.0
@@ -36,16 +31,14 @@ func PixelDistance(ctx context.Context, name string, file io.Reader, target colo
 			break
 		default:
 			distance := DefaultCache.Distance(distanceFunc, pixel, target)
-			if distance <= maxDistance {
-				if lowest < 0 {
-					lowest = distance
-				} else {
-					lowest = min(lowest, distance)
-				}
+			if lowest < 0 {
+				lowest = distance
+			} else {
+				lowest = min(lowest, distance)
 			}
 		}
 	}
-	return Distance{Found: lowest >= 0, Distance: lowest}
+	return lowest
 }
 
 // pixels is an iterator over all the pixels in an image.

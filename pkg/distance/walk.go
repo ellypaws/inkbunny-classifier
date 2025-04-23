@@ -12,8 +12,8 @@ import (
 )
 
 type Result struct {
-	Path  string    `json:"path"`
-	Color *Distance `json:"color,omitempty"`
+	Path  string   `json:"path"`
+	Color *float64 `json:"color,omitempty"`
 }
 
 type Config struct {
@@ -54,9 +54,9 @@ func Do(args walker.Args[Args]) (Result, error) {
 		return Result{Path: args.Path}, err
 	}
 	defer file.Close()
-	distance := PixelDistance(args.Context, args.Path, file, args.Args.Target, args.Args.Threshold, args.Args.Metric)
-	if !distance.Found {
-		return Result{Path: args.Path, Color: nil}, fmt.Errorf("lowest: %.3f", distance.Distance)
+	distance := PixelDistance(args.Context, args.Path, file, args.Args.Target, args.Args.Metric)
+	if distance >= 0 && distance < args.Args.Threshold {
+		return Result{Path: args.Path, Color: nil}, fmt.Errorf("lowest: %.3f", distance)
 	}
 	return Result{Path: args.Path, Color: &distance}, nil
 }

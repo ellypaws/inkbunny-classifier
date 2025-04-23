@@ -79,7 +79,7 @@ func Respond[P ~*T, T any](w http.ResponseWriter, r *http.Request, worker iter.S
 type Result struct {
 	Path       string               `json:"path"`
 	URL        string               `json:"url,omitempty"`
-	Color      *distance.Distance   `json:"color,omitempty"`
+	Color      *float64             `json:"color,omitempty"`
 	Prediction *classify.Prediction `json:"prediction,omitempty"`
 }
 
@@ -145,8 +145,8 @@ func newDistanceConfig(r *http.Request, crypto *lib.Crypto) (distanceConfig[*lib
 	}, nil
 }
 
-func (d *distanceConfig[_]) worker(ctx context.Context) utils.WorkerPool[string, *distance.Distance] {
-	return utils.NewWorkerPool(runtime.NumCPU(), func(path string) *distance.Distance {
+func (d *distanceConfig[_]) worker(ctx context.Context) utils.WorkerPool[string, *float64] {
+	return utils.NewWorkerPool(runtime.NumCPU(), func(path string) *float64 {
 		if !d.enabled {
 			return nil
 		}
@@ -162,16 +162,16 @@ func (d *distanceConfig[_]) worker(ctx context.Context) utils.WorkerPool[string,
 			return nil
 		default:
 		}
-		pixelDistance := distance.PixelDistance(ctx, path, file, d.target, d.threshold, d.metric)
+		pixelDistance := distance.PixelDistance(ctx, path, file, d.target, d.metric)
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
-			if !pixelDistance.Found {
-				log.Warnf("%s not found, lowest: %.3f", path, pixelDistance.Distance)
+			if pixelDistance >= 0 && pixelDistance < d.threshold {
+				log.Warnf("%s not found, lowest: %.3f%%", path, pixelDistance)
 				return nil
 			}
-			log.Debugf("Found %s %#v", path, pixelDistance)
+			log.Debugf("Found %s %.3f%%", path, pixelDistance)
 			return &pixelDistance
 		}
 	})
@@ -217,7 +217,7 @@ func (d *classifyConfig[_]) worker(ctx context.Context) utils.WorkerPool[string,
 }
 
 // Collect processes a file and returns a Result.
-func Collect(ctx context.Context, path string, distancePromise <-chan *distance.Distance, predictionPromise <-chan *classify.Prediction) (*Result, error) {
+func Collect(ctx context.Context, path string, distancePromise <-chan *float64, predictionPromise <-chan *classify.Prediction) (*Result, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
