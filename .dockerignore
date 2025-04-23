@@ -1,0 +1,17 @@
+.idea
+
+# config
+*.txt
+*.json
+*.exe
+
+# images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# dataset files
+inkbunny
+dataset
