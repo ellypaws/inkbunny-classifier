@@ -50,20 +50,23 @@ Polling:
 					log.Errorf("Error opening file %s, %v", r.Path, err)
 					continue
 				}
-				defer source.Close()
 
 				f, err := os.Create(filePath)
 				if err != nil {
 					log.Printf("Error creating file %s, %v", filePath, err)
+					source.Close()
 					continue
 				}
-				defer f.Close()
 
 				written, err := io.Copy(f, source)
 				if err != nil {
 					log.Errorf("Error writing file %s, %v", filePath, err)
+					f.Close()
+					source.Close()
 					continue
 				}
+				f.Close()
+				source.Close()
 				log.Infof("File %s created [%d bytes]", filePath, written)
 			}
 		case <-ctx.Done():
