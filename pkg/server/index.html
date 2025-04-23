@@ -387,12 +387,6 @@
      ********************/
 
     /**
-     * @typedef {Object} ColorResult
-     * @property {boolean} found - Whether the target color was found within threshold
-     * @property {number} distance - Distance value between target and found color
-     */
-
-    /**
      * A mapping of prediction classes (keys) to their probability scores.
      * @typedef {Object} Prediction
      */
@@ -401,7 +395,7 @@
      * @typedef {Object} Result
      * @property {string} path - File path to the image
      * @property {string?} url - URL to the image
-     * @property {ColorResult?} [color] - Color comparison results, if enabled
+     * @property {Number?} [color] - Color comparison results, if enabled
      * @property {Prediction?} [prediction] - Classification prediction results, if enabled
      */
 
@@ -1030,7 +1024,7 @@
      */
     function evaluateColor(result) {
         const maxDistance = parseFloat(filterDistanceNumber.value) / 100;
-        return result.color ? (result.color.found && result.color.distance <= maxDistance) : true;
+        return result.color ? result.color <= maxDistance : true;
     }
 
     /**
@@ -1141,8 +1135,8 @@
 
         // Build info content with optional checks.
         let infoHTML = '';
-        if (result.color && typeof result.color.distance === 'number') {
-            const distPercent = (result.color.distance * 100).toFixed(2);
+        if (typeof result.color === 'number') {
+            const distPercent = (result.color * 100).toFixed(2);
             infoHTML += `Color Distance: ${distPercent}%<br>`;
         }
 
