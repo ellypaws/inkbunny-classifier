@@ -20,14 +20,9 @@ type Distance struct {
 	Distance float64 `json:"distance,omitempty"`
 }
 
-// PixelDistance inspects the image at filename and returns the Lab distance
-// to target along with a boolean indicating if a pixel is found within maxDistance.
-func PixelDistance(ctx context.Context, name string, file io.ReadSeeker, target colorful.Color, maxDistance float64, distanceFunc func(colorful.Color, colorful.Color) float64) Distance {
-	_, err := file.Seek(0, io.SeekStart)
-	if err != nil {
-		log.Errorf("Error seeking to beginning of file: %v", err)
-		return Distance{Found: false, Distance: -1}
-	}
+// PixelDistance inspects the image at reader and returns the distance according to distanceFunc.
+// It returns the lowest distance found, or -1 if no pixel is within maxDistance.
+func PixelDistance(ctx context.Context, name string, file io.Reader, target colorful.Color, maxDistance float64, distanceFunc func(colorful.Color, colorful.Color) float64) Distance {
 	img, _, err := image.Decode(file)
 	if err != nil {
 		log.Errorf("error decoding %s: %v", name, err)
