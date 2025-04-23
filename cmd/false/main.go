@@ -55,7 +55,7 @@ func main() {
 			}
 			prediction := <-predictionWorker.Promise(predictionRequest{
 				Username:     submission.Username,
-				FileURLFull:  file.FileURLFull,
+				FileURLFull:  file.FileURLScreen,
 				SubmissionID: file.SubmissionID,
 			})
 			if prediction != nil {
