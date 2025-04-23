@@ -8,18 +8,17 @@ import (
 
 var DefaultCache = &cache{
 	RWMutex: new(sync.RWMutex),
-	cache:   make(map[string]float64),
+	cache:   make(map[colorful.Color]float64),
 }
 
 type cache struct {
 	*sync.RWMutex
-	cache map[string]float64
+	cache map[colorful.Color]float64
 }
 
 func (c *cache) Distance(distance func(colorful.Color, colorful.Color) float64, from, target colorful.Color) float64 {
-	hex := from.Hex()
 	c.RLock()
-	if v, ok := c.cache[hex]; ok {
+	if v, ok := c.cache[from]; ok {
 		c.RUnlock()
 		return v
 	}
@@ -28,7 +27,7 @@ func (c *cache) Distance(distance func(colorful.Color, colorful.Color) float64, 
 	d := distance(from, target)
 
 	c.Lock()
-	c.cache[hex] = d
+	c.cache[from] = d
 	c.Unlock()
 
 	return d
