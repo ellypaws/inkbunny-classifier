@@ -178,9 +178,8 @@ func (c *CryptoFile) Read(p []byte) (n int, err error) {
 		if err != nil {
 			return
 		}
-		_, err = c.file.Seek(max(aes.BlockSize, off), io.SeekStart)
-		if err != nil {
-			return
+		if off > aes.BlockSize {
+			_, err = c.file.Seek(off, io.SeekStart)
 		}
 	})
 	if err != nil {
