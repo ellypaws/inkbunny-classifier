@@ -198,7 +198,7 @@ func (c *CryptoFile) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		break
 	case io.SeekEnd:
-		offset -= aes.BlockSize
+		break
 	default:
 		return 0, fmt.Errorf("invalid whence: %d", whence)
 	}
