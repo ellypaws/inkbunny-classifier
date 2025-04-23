@@ -32,7 +32,7 @@ Polling:
 				cancel()
 				break Polling
 			}
-			if class := (*r.Prediction)[os.Getenv("CLASS")]; class >= 0.85 {
+			if sum := r.Prediction.Whitelist(strings.Split(os.Getenv("CLASSES"), ",")...).Sum(); sum >= 0.85 {
 				filePath := target(r.Path)
 				if fileExists(filePath) {
 					log.Warnf("File %s already exists", filePath)
