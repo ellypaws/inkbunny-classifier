@@ -150,16 +150,44 @@ func (c *Crypto) Open(path string) (*CryptoFile, error) {
 		return nil, fmt.Errorf("error making decoder: %w", err)
 	}
 
-	return &CryptoFile{decoder, file, c != nil && c.key != ""}, nil
+	return &CryptoFile{decoder: decoder, file: file, encrypted: c != nil && c.key != ""}, nil
 }
 
 type CryptoFile struct {
 	decoder   io.Reader
 	file      *os.File
+	once      sync.Once
 	encrypted bool
 }
 
-func (c *CryptoFile) Read(p []byte) (n int, err error) { return c.decoder.Read(p) }
+func (c *CryptoFile) Read(p []byte) (n int, err error) {
+	c.once.Do(func() {
+		if !c.encrypted {
+			return
+		}
+		var off int64
+		off, err = c.file.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return
+		}
+		_, err = c.file.Seek(0, io.SeekStart)
+		if err != nil {
+			return
+		}
+		n, err = c.decoder.Read(nil)
+		if err != nil {
+			return
+		}
+		_, err = c.file.Seek(max(aes.BlockSize, off), io.SeekStart)
+		if err != nil {
+			return
+		}
+	})
+	if err != nil {
+		return
+	}
+	return c.decoder.Read(p)
+}
 
 func (c *CryptoFile) Seek(offset int64, whence int) (int64, error) {
 	if !c.encrypted {
@@ -203,6 +231,6 @@ func (c *Crypto) OpenWithMethod(method func(io.Reader) (io.Reader, error)) func(
 			return nil, fmt.Errorf("error making decoder: %w", err)
 		}
 
-		return &CryptoFile{decoder, file, c != nil && c.key != ""}, nil
+		return &CryptoFile{decoder: decoder, file: file, encrypted: c != nil && c.key != ""}, nil
 	}
 }
