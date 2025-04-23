@@ -167,7 +167,7 @@ func (d *distanceConfig[_]) worker(ctx context.Context) utils.WorkerPool[string,
 		case <-ctx.Done():
 			return nil
 		default:
-			if pixelDistance >= 0 && pixelDistance < d.threshold {
+			if pixelDistance < 0 || pixelDistance > d.threshold {
 				log.Warnf("%s not found, lowest: %.3f%%", path, pixelDistance)
 				return nil
 			}

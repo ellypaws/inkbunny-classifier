@@ -55,7 +55,7 @@ func Do(args walker.Args[Args]) (Result, error) {
 	}
 	defer file.Close()
 	distance := PixelDistance(args.Context, args.Path, file, args.Args.Target, args.Args.Metric)
-	if distance >= 0 && distance < args.Args.Threshold {
+	if distance < 0 || distance > args.Args.Threshold {
 		return Result{Path: args.Path, Color: nil}, fmt.Errorf("lowest: %.3f", distance)
 	}
 	return Result{Path: args.Path, Color: &distance}, nil
