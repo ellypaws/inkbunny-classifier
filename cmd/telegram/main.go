@@ -14,6 +14,7 @@ import (
 const (
 	EnvTelegramBotToken      = "TELEGRAM_BOT_TOKEN"
 	EnvTelegramRefreshRate   = "TELEGRAM_REFRESH_RATE"
+	EnvTelegramThreshold     = "TELEGRAM_THRESHOLD"
 	EnvTelegramSID           = "TELEGRAM_SID"
 	EnvTelegramEncryptionKey = "TELEGRAM_ENCRYPT_KEY"
 	EnvTelegramClassify      = "TELEGRAM_CLASSIFY"
@@ -28,6 +29,7 @@ func main() {
 		Output:        os.Stdout,
 		Token:         os.Getenv(EnvTelegramBotToken),
 		RefreshRate:   os.Getenv(EnvTelegramRefreshRate),
+		Threshold:     os.Getenv(EnvTelegramThreshold),
 		SID:           os.Getenv(EnvTelegramSID),
 		Classify:      os.Getenv(EnvTelegramClassify),
 		EncryptionKey: os.Getenv(EnvTelegramEncryptionKey),

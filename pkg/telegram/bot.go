@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -48,6 +49,7 @@ type Config struct {
 	Token         string
 	Output        io.Writer
 	RefreshRate   string
+	Threshold     string
 	SID           string
 	Classify      string
 	EncryptionKey string
@@ -74,10 +76,18 @@ func New(config Config) (*Bot, error) {
 	if config.Classes != "" {
 		classes = strings.Split(config.Classes, ",")
 	}
+
+	threshold := 0.75
+	if config.Threshold != "" {
+		if f, err := strconv.ParseFloat(config.Threshold, 64); err == nil {
+			threshold = f
+		}
+	}
 	tgBot, err := handlers.New(
 		config.Token,
 		config.SID,
 		refreshRate,
+		threshold,
 		config.Classify != "false",
 		config.EncryptionKey,
 		config.Output,

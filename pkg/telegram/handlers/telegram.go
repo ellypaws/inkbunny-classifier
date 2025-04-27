@@ -23,6 +23,7 @@ type Bot struct {
 
 	sid         string
 	refreshRate time.Duration
+	threshold   float64
 	classify    bool
 	crypto      *lib.Crypto
 	classes     []string
@@ -47,7 +48,7 @@ type MessageWithButton struct {
 
 type Subscribers = map[int64]*telebot.Chat
 
-func New(token string, sid string, refreshRate time.Duration, classify bool, encryptionKey string, output io.Writer, context context.Context, classes []string) (*Bot, error) {
+func New(token string, sid string, refreshRate time.Duration, threshold float64, classify bool, encryptionKey string, output io.Writer, context context.Context, classes []string) (*Bot, error) {
 	settings := telebot.Settings{
 		Token:  token,
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
@@ -78,6 +79,7 @@ func New(token string, sid string, refreshRate time.Duration, classify bool, enc
 
 		sid:         sid,
 		refreshRate: refreshRate,
+		threshold:   threshold,
 		classify:    classify,
 		crypto:      crypto,
 		classes:     classes,

@@ -174,7 +174,7 @@ func (b *Bot) Watcher() error {
 		}
 
 		prediction, aggregate, average := res.Predictions.Aggregate(b.classes...)
-		if aggregate >= 0.75 {
+		if aggregate >= b.threshold {
 			if prediction == nil {
 				b.logger.Warn("Prediction returned nil", "submission_id", res.Submission.SubmissionID)
 				continue
