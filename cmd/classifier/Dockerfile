@@ -17,7 +17,6 @@ COPY . .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV USE_CUDA=false
 
 # Install CUDA dependencies only if USE_CUDA is true
 RUN if [ "$USE_CUDA" = "true" ]; then \
