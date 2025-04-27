@@ -92,7 +92,7 @@ func (b *Bot) Watcher() error {
 			predictions = make([]*Prediction, 0, len(submission.Files))
 			err         error
 		)
-		for _, file := range submission.Files {
+		for i, file := range submission.Files {
 			if err = b.context.Err(); err != nil {
 				break
 			}
@@ -105,9 +105,18 @@ func (b *Bot) Watcher() error {
 				FileURLFull:  file.FileURLFull,
 				SubmissionID: file.SubmissionID,
 			})
-			if prediction != nil {
-				predictions = append(predictions, prediction)
+			if prediction == nil {
+				continue
 			}
+			class, confidence := prediction.Prediction.Max()
+			b.logger.Debug("Prediction found",
+				"submission", submission.SubmissionID,
+				b.classes, floatString(prediction.Prediction.Clone().Whitelist(b.classes...).Sum()),
+				"file", fmt.Sprintf("%d/%d", i+1, len(submission.Files)),
+				"class", class,
+				"confidence", floatString(confidence),
+			)
+			predictions = append(predictions, prediction)
 		}
 
 		b.mu.Lock()
@@ -317,16 +326,22 @@ const (
 )
 
 const (
-	falsePositiveState = "false_positive"
-	dangerState        = "danger"
+	falsePositiveState     = "false_positive"
+	undoFalsePositiveState = "undo"
+	dangerState            = "danger"
+	undoDangerState        = "undo_danger"
 )
 
 func (s state) String() string {
 	switch s {
 	case falsePositive:
 		return falsePositiveState
+	case undoFalsePositive:
+		return undoFalsePositiveState
 	case danger:
 		return dangerState
+	case undoDanger:
+		return undoDangerState
 	default:
 		return ""
 	}
@@ -395,6 +410,7 @@ func (b *Bot) handleReport(action state) func(c telebot.Context) error {
 			return nil
 		}
 
+		b.logger.Info("Reported this", "submission", submissionID, "action", action, "user", user.ID, "username", user.Username)
 		switch action {
 		case falsePositive, danger:
 			if refs.Reports == nil {
