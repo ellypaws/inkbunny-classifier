@@ -151,7 +151,7 @@ func Predict(ctx context.Context, name, key string, file io.Reader) (Prediction,
 	}
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
-		body, _ := io.ReadAll(body)
+		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("error in predicting %s: %s", name, string(body))
 	}
 
