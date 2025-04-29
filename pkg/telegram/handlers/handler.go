@@ -29,8 +29,6 @@ func (b *Bot) Handlers() error {
 	return b.Watcher()
 }
 
-const test = `󠀁󠁵󠁴󠁩󠁬󠁳󠀮󠁃󠁯󠁰󠁹󠁂󠁵󠁴󠁴󠁯󠁮󠀨󠁵󠁮󠁤󠁯󠁂󠁵󠁴󠁴󠁯󠁮󠀬󠀠󠁳󠁵󠁢󠁭󠁩󠁳󠁳󠁩󠁯󠁮󠁉󠁄󠀩󠁿`
-
 func (b *Bot) handleSubscribe(c telebot.Context) error {
 	chat := c.Chat()
 	if chat == nil {
