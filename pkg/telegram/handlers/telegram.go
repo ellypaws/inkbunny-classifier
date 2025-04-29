@@ -6,6 +6,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 type Bot struct {
 	Bot         *telebot.Bot
 	Subscribers Subscribers
+	Blacklist   Subscribers
 
 	sid         string
 	refreshRate time.Duration
@@ -97,6 +99,7 @@ func (b *Bot) Logger() *log.Logger {
 
 func (b *Bot) Start() error {
 	b.load()
+	b.cleanup()
 	go b.Bot.Start()
 	b.logger.Info("Telegram bot started")
 	return nil
@@ -114,6 +117,7 @@ const savePath = "telegram.json"
 
 type Settings struct {
 	Subscribers Subscribers            `json:"subscribers,omitempty"`
+	Blacklist   Subscribers            `json:"blacklist,omitempty"`
 	References  map[string]*MessageRef `json:"references,omitempty"`
 }
 
@@ -147,6 +151,7 @@ func (b *Bot) save() {
 	defer f.Close()
 	settings := Settings{
 		Subscribers: b.Subscribers,
+		Blacklist:   b.Blacklist,
 		References:  b.references,
 	}
 	if err := utils.Encode(f, settings); err != nil {
@@ -180,5 +185,52 @@ func (b *Bot) load() {
 		b.logger.Debugf("Loaded %d references from %s file", len(settings.References), savePath)
 	} else {
 		b.logger.Warnf("No references found in %s file", savePath)
+	}
+	if len(settings.Blacklist) > 0 {
+		b.Blacklist = settings.Blacklist
+		b.logger.Debugf("Loaded %d blacklisted users from %s file", len(settings.Blacklist), savePath)
+		for id, user := range settings.Subscribers {
+			if _, ok := b.Blacklist[id]; ok {
+				b.logger.Warn("Blacklisted user was found in subscribers", "id", id, "username", user.Username)
+				delete(settings.Subscribers, id)
+			}
+		}
+	}
+}
+
+func (b *Bot) cleanup() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for id, ref := range b.references {
+		if ref == nil {
+			b.logger.Warn("Reference is nil in cleanup", "submission", id)
+			continue
+		}
+		ref.Messages = slices.DeleteFunc(ref.Messages, func(m MessageWithButton) bool {
+			if m.Message == nil {
+				b.logger.Warn("Message is nil in cleanup", "submission", id)
+				return true
+			}
+			if m.Message.Chat == nil {
+				b.logger.Warn("Message chat is nil in cleanup", "submission", id)
+				return false
+			}
+			if _, ok := b.Blacklist[m.Message.Chat.ID]; !ok {
+				return false
+			}
+			if err := b.Bot.Delete(m.Message); err != nil {
+				b.logger.Error("Could not delete message from blacklisted user", "message", m.Message.ID, "id", m.Message.Chat.ID, "username", m.Message.Chat.Username, "error", err)
+				edited, err := b.Bot.Edit(m.Message, "Detected filtered")
+				if err != nil {
+					b.logger.Warn("Could not redact message", "error", err)
+					return false
+				}
+				*m.Message = *edited
+				return true
+			} else {
+				b.logger.Warn("Deleted message from blacklisted user", "message", m.Message.ID, "id", m.Message.Chat.ID, "username", m.Message.Chat.Username)
+				return true
+			}
+		})
 	}
 }

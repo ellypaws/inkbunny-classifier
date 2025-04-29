@@ -35,6 +35,14 @@ func (b *Bot) handleSubscribe(c telebot.Context) error {
 		return errors.New("chat cannot be nil")
 	}
 
+	b.mu.RLock()
+	_, ok := b.Blacklist[chat.ID]
+	b.mu.RUnlock()
+	if ok {
+		b.logger.Warn("Blacklisted user is trying to subscribe", "id", chat.ID, "username", chat.Username)
+		return nil
+	}
+
 	b.mu.Lock()
 	b.Subscribers[chat.ID] = chat
 	b.mu.Unlock()
