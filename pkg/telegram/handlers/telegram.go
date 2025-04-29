@@ -124,7 +124,15 @@ func (b *Bot) prune() {
 		if ref == nil {
 			return true
 		}
-		return len(ref.Messages) == 0
+		if len(ref.Messages) == 0 {
+			return true
+		}
+		for _, m := range ref.Messages {
+			if m.Message != nil {
+				return false
+			}
+		}
+		return true
 	})
 }
 
