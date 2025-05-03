@@ -135,6 +135,7 @@ func (b *Bot) Watcher() error {
 	// Submission watcher, adds new submissions to worker
 	go func() {
 		defer worker.Close()
+		ticker := time.NewTicker(time.Hour)
 		for b.context.Err() == nil {
 			select {
 			case <-b.context.Done():
@@ -167,6 +168,8 @@ func (b *Bot) Watcher() error {
 				return
 			case <-time.After(b.refreshRate):
 				continue
+			case <-ticker.C:
+				b.prune()
 			}
 		}
 	}()
