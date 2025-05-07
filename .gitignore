@@ -5,6 +5,7 @@ vendor
 *.txt
 *.json
 *.exe
+*.env
 
 # images
 *.png

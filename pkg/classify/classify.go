@@ -17,6 +17,7 @@ import (
 	"slices"
 	"time"
 
+	_ "github.com/joho/godotenv/autoload"
 	_ "golang.org/x/image/webp"
 
 	"classifier/pkg/utils"
