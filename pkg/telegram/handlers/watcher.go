@@ -292,6 +292,8 @@ func (b *Bot) Notify(submission *api.Submission, prediction *Prediction) ([]Mess
 	}
 	message := filteredMessage(prediction.Prediction.Clone().Whitelist(b.classes...).Sum()*100, submission.SubmissionID, submission.Username)
 	button := utils.Single(utils.CopyButton(falseButton, submission.SubmissionID), utils.CopyButton(dangerButton, submission.SubmissionID))
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
 		if b.context.Err() != nil {
