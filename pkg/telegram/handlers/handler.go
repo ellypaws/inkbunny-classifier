@@ -43,10 +43,18 @@ func (b *Bot) handleSubscribe(c telebot.Context) error {
 		return nil
 	}
 
+	b.mu.RLock()
+	_, ok = b.Subscribers[chat.ID]
+	b.mu.RUnlock()
+	if ok {
+		b.logger.Warn("User already subscribed", "id", chat.ID, "username", chat.Username)
+		return c.Reply("You are already subscribed, you can use /stop to unsubscribe")
+	}
+
 	b.mu.Lock()
 	b.Subscribers[chat.ID] = chat
 	b.mu.Unlock()
-	err := c.Send("Subscribed")
+	err := c.Reply("Subscribed")
 	if err != nil {
 		return err
 	}
