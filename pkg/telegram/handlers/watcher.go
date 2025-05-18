@@ -292,8 +292,8 @@ func (b *Bot) Notify(submission *api.Submission, prediction *Prediction) ([]Mess
 	}
 	message := filteredMessage(prediction.Prediction.Clone().Whitelist(b.classes...).Sum()*100, submission.SubmissionID, submission.Username)
 	button := utils.Single(utils.CopyButton(falseButton, submission.SubmissionID), utils.CopyButton(dangerButton, submission.SubmissionID))
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	references := make([]MessageWithButton, 0, len(b.Subscribers))
 	for id, recipient := range b.Subscribers {
 		if b.context.Err() != nil {
@@ -307,6 +307,8 @@ func (b *Bot) Notify(submission *api.Submission, prediction *Prediction) ([]Mess
 		if err := b.Bot.Notify(recipient, utils.RandomActivity()); err != nil {
 			b.logger.Error("Failed to notify user", "error", err, "user", recipient.ID, "username", recipient.Username)
 			if errors.Is(err, telebot.ErrBlockedByUser) {
+				b.Blacklist[id] = recipient
+				delete(b.Subscribers, id)
 				continue
 			} else {
 				return nil, err
@@ -316,6 +318,8 @@ func (b *Bot) Notify(submission *api.Submission, prediction *Prediction) ([]Mess
 		if err != nil {
 			b.logger.Error("Failed to send message", "error", err, "user_id", id)
 			if errors.Is(err, telebot.ErrBlockedByUser) {
+				b.Blacklist[id] = recipient
+				delete(b.Subscribers, id)
 				continue
 			} else {
 				return nil, err
