@@ -304,12 +304,20 @@ func (b *Bot) Notify(submission *api.Submission, prediction *Prediction) ([]Mess
 		}
 		if err := b.Bot.Notify(recipient, utils.RandomActivity()); err != nil {
 			b.logger.Error("Failed to notify user", "error", err, "user", recipient.ID, "username", recipient.Username)
-			return nil, fmt.Errorf("error sending notify to telegram: %w", err)
+			if errors.Is(err, telebot.ErrBlockedByUser) {
+				continue
+			} else {
+				return nil, err
+			}
 		}
 		reference, err := wrapper.Send(b.Bot, recipient, message, defaultSendOption(button))
 		if err != nil {
 			b.logger.Error("Failed to send message", "error", err, "user_id", id)
-			return nil, fmt.Errorf("error sending to telegram: %w", err)
+			if errors.Is(err, telebot.ErrBlockedByUser) {
+				continue
+			} else {
+				return nil, err
+			}
 		}
 
 		b.logger.Info("Notified successfully", "user_id", id, "username", recipient.Username)
