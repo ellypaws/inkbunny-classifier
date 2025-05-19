@@ -124,6 +124,7 @@ type Settings struct {
 func (b *Bot) prune() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	before := len(b.references)
 	maps.DeleteFunc(b.references, func(_ string, ref *MessageRef) bool {
 		if ref == nil {
 			return true
@@ -138,6 +139,10 @@ func (b *Bot) prune() {
 		}
 		return true
 	})
+	after := len(b.references)
+	if (before - after) > 0 {
+		b.logger.Infof("Pruned %d references", before-after)
+	}
 }
 
 func (b *Bot) save() {
